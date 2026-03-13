@@ -36,18 +36,19 @@ export const TravelPlanner: React.FC = () => {
     }
 
     // Simulate route calculation
-    const mockRoutes = [
-      {
-        from: origin,
-        to: destination,
-        mode: 'driving',
-        duration: 25,
-        distance: 12.3,
-        cost: 8.50,
-        arrivalTime: new Date(Date.now() + 25 * 60000).toISOString(),
-        status: 'delayed' as const,
-        trafficLevel: 'high' as const,
-      },
+    // Simulate route calculation
+      const mockRoutes: any[] = [
+        {
+          from: origin,
+          to: destination,
+          mode: 'driving',
+          duration: 25,
+          distance: 12.3,
+          cost: 8.50,
+          arrivalTime: new Date(Date.now() + 25 * 60000).toISOString(),
+          status: 'delayed' as const,
+          trafficLevel: 'high' as const,
+        },
       {
         from: origin,
         to: destination,
@@ -68,6 +69,7 @@ export const TravelPlanner: React.FC = () => {
         cost: 0,
         arrivalTime: new Date(Date.now() + 45 * 60000).toISOString(),
         status: 'normal' as const,
+        trafficLevel: 'low' as const,
       },
     ];
 
@@ -229,7 +231,7 @@ export const TravelPlanner: React.FC = () => {
                     <IndianRupee className="h-4 w-4 text-gray-500" />
                     <div>
                       <p className="text-xs text-gray-500">Cost</p>
-                      <p className="font-semibold">₹{route.cost.toFixed(2)}</p>
+                      <p className="font-semibold">₹{route.cost.toLocaleString('en-IN')}</p>
                     </div>
                   </div>
 
