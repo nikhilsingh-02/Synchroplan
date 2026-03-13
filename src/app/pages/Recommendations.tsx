@@ -5,11 +5,11 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { 
-  Lightbulb, 
-  Star, 
-  MapPin, 
-  DollarSign,
+import {
+  Lightbulb,
+  Star,
+  MapPin,
+  IndianRupee,
   Navigation,
   Hotel,
   Utensils,
@@ -55,8 +55,8 @@ export const Recommendations: React.FC = () => {
     },
     {
       title: 'Cost Optimization',
-      description: 'Using public transit for tomorrow can save you $45 in total',
-      impact: '$45 savings',
+      description: 'Using public transit for tomorrow can save you ₹45 in total',
+      impact: '₹45 savings',
       type: 'cost',
     },
     {
@@ -161,7 +161,7 @@ export const Recommendations: React.FC = () => {
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-gray-500" />
+                      <IndianRupee className="h-4 w-4 text-gray-500" />
                       <span className="font-semibold">{rec.priceRange}</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -247,7 +247,7 @@ export const Recommendations: React.FC = () => {
               <div>
                 <p className="font-medium text-sm">Budget Optimization</p>
                 <p className="text-xs text-gray-600">
-                  Switching to monthly transit pass could save you $87 based on your usage pattern.
+                  Switching to monthly transit pass could save you ₹87 based on your usage pattern.
                 </p>
               </div>
             </div>

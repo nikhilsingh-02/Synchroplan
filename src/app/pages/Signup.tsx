@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -67,9 +67,14 @@ export const Signup: React.FC = () => {
       setLoading(false);
       
       // Auto redirect after 2 seconds
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+        {success && (
+        <Alert className="border-green-200 bg-green-50">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            Account created successfully! Redirecting...
+          </AlertDescription>
+        </Alert>
+      )}
     }
   };
 
