@@ -6,14 +6,14 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { 
-  Navigation, 
-  Car, 
-  Bus, 
-  Footprints, 
+import {
+  Navigation,
+  Car,
+  Bus,
+  Footprints,
   Bike,
   Clock,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   AlertCircle,
   MapPin,
@@ -216,6 +216,7 @@ export const TravelPlanner: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-gray-500" />
                     <div>
@@ -223,13 +224,15 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold">{route.duration} min</p>
                     </div>
                   </div>
+
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-gray-500" />
+                    <IndianRupee className="h-4 w-4 text-gray-500" />
                     <div>
                       <p className="text-xs text-gray-500">Cost</p>
-                      <p className="font-semibold">${route.cost.toFixed(2)}</p>
+                      <p className="font-semibold">₹{route.cost.toFixed(2)}</p>
                     </div>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-gray-500" />
                     <div>
@@ -237,20 +240,21 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold capitalize">{route.trafficLevel || 'N/A'}</p>
                     </div>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-gray-500" />
                     <div>
                       <p className="text-xs text-gray-500">Arrival</p>
                       <p className="font-semibold text-sm">
-                        {new Date(route.arrivalTime).toLocaleTimeString('en-US', { 
-                          hour: 'numeric', 
-                          minute: '2-digit' 
+                        {new Date(route.arrivalTime).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit'
                         })}
                       </p>
                     </div>
                   </div>
-                </div>
 
+                </div>
                 {route.status === 'delayed' && (
                   <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
                     <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />

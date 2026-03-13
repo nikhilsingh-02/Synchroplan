@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
+import { formatINR } from "../../utils/currency";
 import { 
   Calendar, 
   MapPin, 
-  DollarSign, 
+  IndianRupee, 
   AlertTriangle,
   TrendingUp,
   Clock,
@@ -111,14 +112,14 @@ export const Dashboard: React.FC = () => {
               <CardTitle className="text-sm font-medium text-gray-600">
                 Budget Status
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
+              <IndianRupee className="h-4 w-4 text-green-600" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{budgetPercentage.toFixed(0)}%</div>
             <Progress value={budgetPercentage} className="mt-2" />
             <p className="text-xs text-gray-500 mt-1">
-              ${totalExpenses.toFixed(2)} of ${budget}
+              {formatINR(totalExpenses)} of {formatINR(budget)}
             </p>
           </CardContent>
         </Card>
@@ -231,7 +232,7 @@ export const Dashboard: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
+              <IndianRupee className="h-5 w-5" />
               Recent Expenses
             </CardTitle>
             <CardDescription>Last transactions</CardDescription>
@@ -244,7 +245,7 @@ export const Dashboard: React.FC = () => {
                     <p className="font-medium">{expense.description}</p>
                     <p className="text-xs text-gray-500 capitalize">{expense.category}</p>
                   </div>
-                  <span className="font-semibold">${expense.amount.toFixed(2)}</span>
+                  <span className="font-semibold">{formatINR(expense.amount)}</span>
                 </div>
               ))}
               <Link to="/expenses">
@@ -284,7 +285,7 @@ export const Dashboard: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Cost Optimization</span>
-                  <span className="text-sm font-semibold">$124 saved</span>
+                  <span className="text-sm font-semibold">{formatINR(124)} saved</span>
                 </div>
                 <Progress value={78} />
               </div>

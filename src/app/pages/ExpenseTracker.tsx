@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Progress } from '../components/ui/progress';
+import { formatINR } from "../../utils/currency";
 import { 
   Wallet, 
   Plus, 
@@ -110,7 +111,7 @@ export const ExpenseTracker: React.FC = () => {
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="budget">Budget Amount ($)</Label>
+                  <Label htmlFor="budget">Budget Amount (₹)</Label>
                   <Input
                     id="budget"
                     type="number"
@@ -155,7 +156,7 @@ export const ExpenseTracker: React.FC = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="amount">Amount ($) *</Label>
+                  <Label htmlFor="amount">Amount (₹) *</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -206,7 +207,7 @@ export const ExpenseTracker: React.FC = () => {
             <CardTitle className="text-sm font-medium text-gray-600">Total Expenses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${totalExpenses.toFixed(2)}</div>
+            <div className="text-3xl font-bold">{formatINR(totalExpenses)}</div>
             <p className="text-xs text-gray-500 mt-1">{expenses.length} transactions</p>
           </CardContent>
         </Card>
@@ -216,7 +217,7 @@ export const ExpenseTracker: React.FC = () => {
             <CardTitle className="text-sm font-medium text-gray-600">Budget Limit</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${budget.toFixed(2)}</div>
+            <div className="text-3xl font-bold">{formatINR(budget)}</div>
             <p className="text-xs text-gray-500 mt-1">Monthly allocation</p>
           </CardContent>
         </Card>
@@ -227,7 +228,7 @@ export const ExpenseTracker: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className={`text-3xl font-bold ${budget - totalExpenses < 0 ? 'text-red-600' : ''}`}>
-              ${(budget - totalExpenses).toFixed(2)}
+              {formatINR(budget - totalExpenses)}
             </div>
             <p className="text-xs text-gray-500 mt-1">
               {budgetPercentage > 100 ? 'Over budget' : `${(100 - budgetPercentage).toFixed(0)}% available`}
@@ -248,7 +249,7 @@ export const ExpenseTracker: React.FC = () => {
                 </h3>
                 <p className={`text-sm text-${budgetPercentage >= 100 ? 'red' : 'yellow'}-700 mt-1`}>
                   {budgetPercentage >= 100 
-                    ? `You've exceeded your budget by $${(totalExpenses - budget).toFixed(2)}`
+                    ? `You've exceeded your budget by {formatINR(totalExpenses - budget)}`
                     : `You've used ${budgetPercentage.toFixed(0)}% of your budget. Consider reducing expenses.`
                   }
                 </p>
@@ -271,7 +272,7 @@ export const ExpenseTracker: React.FC = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">
-                ${totalExpenses.toFixed(2)} of ${budget.toFixed(2)}
+                {formatINR(totalExpenses)} of {formatINR(budget)}
               </span>
               <span className="font-semibold">{budgetPercentage.toFixed(1)}%</span>
             </div>
@@ -298,7 +299,8 @@ export const ExpenseTracker: React.FC = () => {
                   <XAxis dataKey="category" />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
+                    formatter={(value: number) => formatINR(value)}
+                    //labelFormatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)}
                     contentStyle={{ borderRadius: '8px' }}
                   />
                   <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
@@ -319,7 +321,7 @@ export const ExpenseTracker: React.FC = () => {
                       />
                       <span className="text-sm font-medium">{item.category}</span>
                     </div>
-                    <span className="font-semibold">${item.amount.toFixed(2)}</span>
+                    <span className="font-semibold">{formatINR(item.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -367,7 +369,7 @@ export const ExpenseTracker: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold text-lg">${expense.amount.toFixed(2)}</span>
+                    <span className="font-semibold text-lg">{formatINR(expense.amount)}</span>
                     <Button
                       size="sm"
                       variant="ghost"

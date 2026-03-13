@@ -17,7 +17,7 @@ export const Schedule: React.FC = () => {
 
   const [events, setEvents] = useState<any[]>([]);
 
-  const { conflicts, resolveConflict } = useApp();
+  const { conflicts, resolveConflict, updateEvent, deleteEvent } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
 
