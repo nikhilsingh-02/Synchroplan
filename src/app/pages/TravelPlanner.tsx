@@ -19,67 +19,133 @@ import {
   MapPin,
   Zap,
   Route as RouteIcon,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { geocodeAndCalculateRoute, type RouteResult, type GeocodedLocation } from '../../services/maps/ors.service';
+import type { TravelRoute } from '../../types';
+import { RouteMap, type MapMarker } from '../../components/maps/RouteMap';
 
 export const TravelPlanner: React.FC = () => {
-  const { routes, addRoute, events } = useApp();
+  const { routes, addRoute, updateEvent, events } = useApp();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [mode, setMode] = useState<'driving' | 'transit' | 'walking' | 'cycling'>('driving');
+  const [mode, setMode] = useState<TravelRoute['mode']>('driving');
+  const [isCalculating, setIsCalculating] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  const handleSearch = () => {
+  // Map state — updated after a successful route calculation
+  const [activeRouteResult, setActiveRouteResult] = useState<RouteResult | null>(null);
+  const [activeMarkers, setActiveMarkers] = useState<MapMarker[]>([]);
+
+  // ── Route calculation ──────────────────────────────────────────────────────
+
+  const handleSearch = async () => {
     if (!origin || !destination) {
       toast.error('Please enter both origin and destination');
       return;
     }
 
-    // Simulate route calculation
-    // Simulate route calculation
-      const mockRoutes: any[] = [
-        {
+    setIsCalculating(true);
+
+    const modesWanted: TravelRoute['mode'][] =
+      mode === 'driving'
+        ? ['driving', 'transit', 'walking']
+        : [mode];
+
+    try {
+      // Calculate all requested modes in parallel
+      const results = await Promise.all(
+        modesWanted.map(m => geocodeAndCalculateRoute(origin, destination, m))
+      );
+
+      const successful = results.filter(Boolean) as Exclude<typeof results[0], null>[];
+
+      if (successful.length === 0) {
+        toast.error('Could not calculate routes. Check the addresses and your Mapbox token.');
+        return;
+      }
+
+      // Persist each route via AppContext (dual-write to Supabase + local state)
+      for (const { route, originCoords, destCoords } of successful) {
+        const newRoute: Omit<TravelRoute, 'id'> = {
           from: origin,
           to: destination,
-          mode: 'driving',
-          duration: 25,
-          distance: 12.3,
-          cost: 8.50,
-          arrivalTime: new Date(Date.now() + 25 * 60000).toISOString(),
-          status: 'delayed' as const,
-          trafficLevel: 'high' as const,
-        },
-      {
-        from: origin,
-        to: destination,
-        mode: 'transit',
-        duration: 35,
-        distance: 11.8,
-        cost: 2.75,
-        arrivalTime: new Date(Date.now() + 35 * 60000).toISOString(),
-        status: 'optimal' as const,
-        trafficLevel: 'low' as const,
-      },
-      {
-        from: origin,
-        to: destination,
-        mode: 'cycling',
-        duration: 45,
-        distance: 10.2,
-        cost: 0,
-        arrivalTime: new Date(Date.now() + 45 * 60000).toISOString(),
-        status: 'normal' as const,
-        trafficLevel: 'low' as const,
-      },
-    ];
+          mode: modesWanted[successful.indexOf({ route, originCoords, destCoords })] ?? mode,
+          duration: route.duration,
+          distance: route.distance,
+          cost: estimateCost(route.distance, mode),
+          arrivalTime: route.arrivalTime,
+          status: route.status,
+          trafficLevel: route.trafficLevel,
+        };
+        addRoute(newRoute);
 
-    mockRoutes.forEach(route => addRoute(route));
-    setShowResults(true);
-    toast.success('Routes calculated successfully');
+        // Geocode and update event coordinates if destination matches an event
+        const matchedOriginEvent = events.find(e =>
+          e.location.toLowerCase().includes(origin.toLowerCase()) ||
+          origin.toLowerCase().includes(e.location.toLowerCase())
+        );
+        const matchedDestEvent = events.find(e =>
+          e.location.toLowerCase().includes(destination.toLowerCase()) ||
+          destination.toLowerCase().includes(e.location.toLowerCase())
+        );
+
+        if (matchedOriginEvent && originCoords) {
+          updateEvent(matchedOriginEvent.id, {
+            latitude: originCoords.latitude,
+            longitude: originCoords.longitude,
+          });
+        }
+        if (matchedDestEvent && destCoords) {
+          updateEvent(matchedDestEvent.id, {
+            latitude: destCoords.latitude,
+            longitude: destCoords.longitude,
+          });
+        }
+      }
+
+      // Show the first result on the map
+      const first = successful[0];
+      setActiveRouteResult(first.route);
+      setActiveMarkers([
+        {
+          longitude: first.originCoords.longitude,
+          latitude: first.originCoords.latitude,
+          label: origin,
+          color: '#3b82f6',
+        },
+        {
+          longitude: first.destCoords.longitude,
+          latitude: first.destCoords.latitude,
+          label: destination,
+          color: '#10b981',
+        },
+      ]);
+
+      setShowResults(true);
+      toast.success(`${successful.length} route${successful.length > 1 ? 's' : ''} calculated`);
+    } catch (err) {
+      console.error('[TravelPlanner] Route calculation error:', err);
+      toast.error('Something went wrong calculating the route.');
+    } finally {
+      setIsCalculating(false);
+    }
   };
 
-  const getModeIcon = (mode: string) => {
-    switch (mode) {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  const estimateCost = (distanceKm: number, m: TravelRoute['mode']): number => {
+    switch (m) {
+      case 'driving': return Math.round(distanceKm * 8 * 10) / 10;   // ₹8/km approx
+      case 'transit': return Math.round(distanceKm * 2 * 10) / 10;   // ₹2/km approx
+      case 'walking': return 0;
+      case 'cycling': return 0;
+    }
+  };
+
+  const getModeIcon = (m: string) => {
+    switch (m) {
       case 'driving': return <Car className="h-4 w-4" />;
       case 'transit': return <Bus className="h-4 w-4" />;
       case 'walking': return <Footprints className="h-4 w-4" />;
@@ -98,6 +164,13 @@ export const TravelPlanner: React.FC = () => {
         return <Badge variant="secondary">Normal</Badge>;
     }
   };
+
+  // Most recently calculated routes (last N added to the store)
+  const recentRoutes = showResults ? routes.slice(-modesWanted().length).reverse() : [];
+
+  function modesWanted() {
+    return mode === 'driving' ? ['driving', 'transit', 'walking'] : [mode];
+  }
 
   return (
     <div className="space-y-6">
@@ -152,14 +225,42 @@ export const TravelPlanner: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleSearch} className="px-8">
-                <Navigation className="h-4 w-4 mr-2" />
-                Find Routes
+              <Button onClick={handleSearch} className="px-8" disabled={isCalculating}>
+                {isCalculating
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <Navigation className="h-4 w-4 mr-2" />
+                }
+                {isCalculating ? 'Calculating…' : 'Find Routes'}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Map — shown after first successful route calculation */}
+      {showResults && activeRouteResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Route Map
+            </CardTitle>
+            <CardDescription>
+              Traffic coloring: <span className="text-green-600 font-medium">green</span> = clear ·{' '}
+              <span className="text-yellow-600 font-medium">yellow</span> = moderate ·{' '}
+              <span className="text-red-600 font-medium">red</span> = heavy
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <RouteMap
+              routeGeometry={activeRouteResult.geometry}
+              markers={activeMarkers}
+              congestion={activeRouteResult.congestionSegments}
+              className="h-72"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Route to Events */}
       <Card>
@@ -201,7 +302,7 @@ export const TravelPlanner: React.FC = () => {
       {showResults && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Available Routes</h2>
-          {routes.slice(-3).reverse().map((route) => (
+          {recentRoutes.map((route) => (
             <Card key={route.id} className={route.status === 'optimal' ? 'border-green-300 bg-green-50' : ''}>
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between mb-4">
@@ -218,7 +319,6 @@ export const TravelPlanner: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-gray-500" />
                     <div>
@@ -226,7 +326,6 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold">{route.duration} min</p>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <IndianRupee className="h-4 w-4 text-gray-500" />
                     <div>
@@ -234,7 +333,6 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold">₹{route.cost.toLocaleString('en-IN')}</p>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-gray-500" />
                     <div>
@@ -242,7 +340,6 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold capitalize">{route.trafficLevel || 'N/A'}</p>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-gray-500" />
                     <div>
@@ -250,21 +347,19 @@ export const TravelPlanner: React.FC = () => {
                       <p className="font-semibold text-sm">
                         {new Date(route.arrivalTime).toLocaleTimeString('en-US', {
                           hour: 'numeric',
-                          minute: '2-digit'
+                          minute: '2-digit',
                         })}
                       </p>
                     </div>
                   </div>
-
                 </div>
+
                 {route.status === 'delayed' && (
                   <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
                     <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-red-900">Heavy traffic detected</p>
-                      <p className="text-xs text-red-700">
-                        Consider alternative routes or departure time
-                      </p>
+                      <p className="text-xs text-red-700">Consider alternative routes or departure time</p>
                     </div>
                   </div>
                 )}
@@ -274,9 +369,7 @@ export const TravelPlanner: React.FC = () => {
                     <Zap className="h-4 w-4 text-green-600 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-green-900">Recommended Route</p>
-                      <p className="text-xs text-green-700">
-                        Best balance of time and cost
-                      </p>
+                      <p className="text-xs text-green-700">Best balance of time and cost</p>
                     </div>
                   </div>
                 )}
@@ -286,9 +379,7 @@ export const TravelPlanner: React.FC = () => {
                     <Navigation className="h-4 w-4 mr-2" />
                     Start Navigation
                   </Button>
-                  <Button variant="outline">
-                    Share
-                  </Button>
+                  <Button variant="outline">Share</Button>
                 </div>
               </CardContent>
             </Card>
@@ -307,36 +398,33 @@ export const TravelPlanner: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse"></div>
-                <div>
-                  <p className="font-medium text-sm">I-95 Northbound</p>
-                  <p className="text-xs text-gray-600">Heavy congestion</p>
+            {routes.filter(r => r.trafficLevel === 'high').slice(0, 3).length > 0
+              ? routes.filter(r => r.trafficLevel === 'high').slice(0, 3).map(r => (
+                <div key={r.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse" />
+                    <div>
+                      <p className="font-medium text-sm">{r.from} → {r.to}</p>
+                      <p className="text-xs text-gray-600">Heavy congestion</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-red-700">+{Math.round(r.duration * 0.3)} min</span>
                 </div>
-              </div>
-              <span className="text-sm font-semibold text-red-700">+15 min</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                <div>
-                  <p className="font-medium text-sm">Downtown Area</p>
-                  <p className="text-xs text-gray-600">Moderate traffic</p>
+              ))
+              : (
+                /* Fallback placeholder if no real delayed routes exist yet */
+                <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                    <div>
+                      <p className="font-medium text-sm">All monitored routes</p>
+                      <p className="text-xs text-gray-600">Plan a route to see live traffic data</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-green-700">On time</span>
                 </div>
-              </div>
-              <span className="text-sm font-semibold text-yellow-700">+5 min</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                <div>
-                  <p className="font-medium text-sm">Highway 101</p>
-                  <p className="text-xs text-gray-600">Clear roads</p>
-                </div>
-              </div>
-              <span className="text-sm font-semibold text-green-700">On time</span>
-            </div>
+              )
+            }
           </div>
         </CardContent>
       </Card>

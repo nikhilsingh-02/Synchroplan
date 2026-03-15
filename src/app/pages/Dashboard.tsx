@@ -267,34 +267,55 @@ export const Dashboard: React.FC = () => {
             <CardDescription>Your optimization stats</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Schedule Efficiency</span>
-                  <span className="text-sm font-semibold">87%</span>
+            {(() => {
+              const conflictFreeEvents = events.filter(e => !e.hasConflict).length;
+              const scheduleEfficiency = events.length > 0
+                ? Math.round((conflictFreeEvents / events.length) * 100)
+                : 100;
+              const totalRoutes = routes.length;
+              const optimalRouteRatio = totalRoutes > 0
+                ? Math.round((optimalRoutes / totalRoutes) * 100)
+                : 0;
+              const budgetRemaining = Math.max(0, budget - totalExpenses);
+              const budgetUsedPct = Math.min(100, Math.round((totalExpenses / budget) * 100));
+              return (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Schedule Efficiency</span>
+                      <span className="text-sm font-semibold">{scheduleEfficiency}%</span>
+                    </div>
+                    <Progress value={scheduleEfficiency} />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {conflictFreeEvents} of {events.length} events conflict-free
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Optimal Routes</span>
+                      <span className="text-sm font-semibold">{optimalRouteRatio}%</span>
+                    </div>
+                    <Progress value={optimalRouteRatio} />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {optimalRoutes} of {totalRoutes} routes optimal
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Budget Used</span>
+                      <span className="text-sm font-semibold">{formatINR(budgetRemaining)} remaining</span>
+                    </div>
+                    <Progress value={budgetUsedPct} />
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formatINR(totalExpenses)} spent of {formatINR(budget)} budget
+                    </p>
+                  </div>
                 </div>
-                <Progress value={87} />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Travel Time Saved</span>
-                  <span className="text-sm font-semibold">2.5 hrs</span>
-                </div>
-                <Progress value={65} />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Cost Optimization</span>
-                  <span className="text-sm font-semibold">{formatINR(124)} saved</span>
-                </div>
-                <Progress value={78} />
-              </div>
-              <div className="pt-2 text-sm text-gray-600">
-                <p>💡 You're performing better than 78% of users</p>
-              </div>
-            </div>
+              );
+            })()}
           </CardContent>
         </Card>
+
       </div>
     </div>
   );

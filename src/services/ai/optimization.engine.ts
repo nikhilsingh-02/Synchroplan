@@ -1,0 +1,229 @@
+/**
+ * AI Optimization Engine — Rule-based insight generation.
+ *
+ * Analyzes the user's schedule, travel routes, expenses, and preferences
+ * to produce actionable insights:
+ *  - High travel times or traffic delays
+ *  - Budget overruns
+ *  - Long idle gaps (time optimization)
+ *  - Schedule conflicts
+ */
+
+import { format, differenceInMinutes } from 'date-fns';
+import type { Event, TravelRoute, Expense, UserPreferences } from '../../types';
+
+// ─── Insight Types ────────────────────────────────────────────────────────────
+
+export type InsightCategory =
+  | 'TIME_OPTIMIZATION'
+  | 'ROUTE_OPTIMIZATION'
+  | 'COST_OPTIMIZATION'
+  | 'SCHEDULE_CONFLICT'
+  | 'TRAVEL_BUFFER_WARNING'
+  | 'SCHEDULE_REORDER_SUGGESTION';
+
+export type InsightSeverity = 'low' | 'medium' | 'high';
+
+export interface AIInsight {
+  id: string;
+  category: InsightCategory;
+  title: string;
+  description: string;
+  impact: string;                // Short badge text (e.g. "-15 mins travel", "+₹500 saved")
+  severity: InsightSeverity;
+  recommendedAction: string;     // Actionable next step
+  relatedEventIds?: string[];
+  optimizationDetails?: {
+    originalTravelTime: number;
+    optimizedTravelTime: number;
+    optimizedOrder: Event[];
+    originalOrder?: Event[];
+  };
+}
+
+// ─── Core Engine ──────────────────────────────────────────────────────────────
+
+export function generateInsights(
+  events: Event[],
+  routes: TravelRoute[],
+  expenses: Expense[],
+  preferences: UserPreferences,
+): AIInsight[] {
+  const insights: AIInsight[] = [];
+
+  // Sort events chronologically to analyze flow
+  const sortedEvents = [...events]
+    .filter(e => e.startTime && e.endTime)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  insights.push(...analyzeTravel(routes));
+  insights.push(...analyzeBudget(expenses, preferences.maxBudget));
+  insights.push(...analyzeScheduleFlow(sortedEvents, routes));
+
+  // Sort by severity (high -> medium -> low)
+  const severityWeight = { high: 3, medium: 2, low: 1 };
+  insights.sort((a, b) => severityWeight[b.severity] - severityWeight[a.severity]);
+
+  return insights;
+}
+
+// ─── Analysis Modules ─────────────────────────────────────────────────────────
+
+function analyzeTravel(routes: TravelRoute[]): AIInsight[] {
+  const insights: AIInsight[] = [];
+
+  for (const route of routes) {
+    if (route.trafficLevel === 'high' || route.status === 'delayed') {
+      insights.push({
+        id: `route-traffic-${route.id}`,
+        category: 'ROUTE_OPTIMIZATION',
+        title: 'Heavy Traffic Detected',
+        description: `Your route from ${route.from.split(',')[0]} to ${route.to.split(',')[0]} is experiencing significant delays.`,
+        impact: `+${Math.round(route.duration * 0.3)} min delay`,
+        severity: 'high',
+        recommendedAction: 'Leave 15-20 minutes earlier or switch to public transit.',
+      });
+    }
+
+    if (route.distance > 5 && route.mode === 'walking') {
+      insights.push({
+        id: `route-mode-${route.id}`,
+        category: 'ROUTE_OPTIMIZATION',
+        title: 'Inefficient Travel Mode',
+        description: `${route.distance}km is a long distance to walk from ${route.from.split(',')[0]} to ${route.to.split(',')[0]}.`,
+        impact: `Save ${Math.floor(route.duration * 0.7)} mins`,
+        severity: 'medium',
+        recommendedAction: 'Consider taking a cab or public transit to save significant time.',
+      });
+    }
+  }
+
+  return insights;
+}
+
+function analyzeBudget(expenses: Expense[], maxBudget: number): AIInsight[] {
+  const insights: AIInsight[] = [];
+
+  const totalSpend = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const ratio = totalSpend / maxBudget;
+
+  if (ratio > 1) {
+    insights.push({
+      id: 'budget-over',
+      category: 'COST_OPTIMIZATION',
+      title: 'Budget Exceeded',
+      description: `You have spent ₹${totalSpend.toLocaleString()} which is over your ₹${maxBudget.toLocaleString()} limit.`,
+      impact: `Limit exceeded`,
+      severity: 'high',
+      recommendedAction: 'Review recent expenses and cut non-essential costs for the rest of the period.',
+    });
+  } else if (ratio > 0.8) {
+    insights.push({
+      id: 'budget-warning',
+      category: 'COST_OPTIMIZATION',
+      title: 'Approaching Budget Limit',
+      description: `You have spent ${Math.round(ratio * 100)}% of your ₹${maxBudget.toLocaleString()} budget.`,
+      impact: `₹${(maxBudget - totalSpend).toLocaleString()} remaining`,
+      severity: 'medium',
+      recommendedAction: 'Opt for more cost-effective travel and dining options.',
+    });
+  }
+
+  const travelSpend = expenses
+    .filter(e => e.category === 'transport')
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  if (travelSpend > totalSpend * 0.5 && travelSpend > 0) {
+    insights.push({
+      id: 'budget-transport',
+      category: 'COST_OPTIMIZATION',
+      title: 'High Transportation Costs',
+      description: 'Over 50% of your expenses are going towards transportation.',
+      impact: "High spend",
+      severity: 'low',
+      recommendedAction: 'Consider consolidating trips or using public transit more frequently.',
+    });
+  }
+
+  return insights;
+}
+
+function analyzeScheduleFlow(events: Event[], routes: TravelRoute[]): AIInsight[] {
+  const insights: AIInsight[] = [];
+
+  for (let i = 0; i < events.length - 1; i++) {
+    const current = events[i];
+    const next    = events[i + 1];
+
+    const currentEnd = new Date(current.endTime);
+    const nextStart  = new Date(next.startTime);
+
+    // Only analyze pairs on the same day
+    if (currentEnd.toDateString() !== nextStart.toDateString()) continue;
+
+    const gapMinutes = differenceInMinutes(nextStart, currentEnd);
+
+    // 1. Long idle gaps (Time Optimization)
+    if (gapMinutes > 120) {
+      insights.push({
+        id: `idle-${current.id}-${next.id}`,
+        category: 'TIME_OPTIMIZATION',
+        title: 'Large Schedule Gap',
+        description: `You have a ${gapMinutes} minute gap between "${current.title}" and "${next.title}".`,
+        impact: `Unlock ${Math.floor(gapMinutes / 60)}h ${gapMinutes % 60}m`,
+        severity: 'low',
+        recommendedAction: 'You can fit a low-priority task here, or consider moving the events closer together.',
+        relatedEventIds: [current.id, next.id],
+      });
+    }
+
+    // 2. Travel Buffer Warning
+    if (gapMinutes > 0 && current.location && next.location) {
+      // Find a matching route
+      const route = routes.find(r =>
+        (r.from.includes(current.location) && r.to.includes(next.location)) ||
+        (current.location.includes(r.from) && next.location.includes(r.to))
+      );
+
+      const requiredTravelMin = route?.duration ?? 25; // fallback estimate
+
+      if (gapMinutes < requiredTravelMin) {
+        insights.push({
+          id: `buffer-${current.id}-${next.id}`,
+          category: 'TRAVEL_BUFFER_WARNING',
+          title: 'Insufficient Travel Buffer',
+          description: `You have ${gapMinutes} mins between events, but travel requires ~${requiredTravelMin} mins.`,
+          impact: "Possible delay",
+          severity: 'high',
+          recommendedAction: `Reschedule "${next.title}" to start ${requiredTravelMin - gapMinutes} minutes later.`,
+          relatedEventIds: [current.id, next.id],
+        });
+      }
+    }
+  }
+
+  // 3. Location grouping (Route Optimization)
+  // Recommends grouping events in the same area
+  const locationCounts = events.reduce<Record<string, number>>((acc, e) => {
+    if (!e.location) return acc;
+    const baseLoc = e.location.split(',')[0].trim();
+    acc[baseLoc] = (acc[baseLoc] || 0) + 1;
+    return acc;
+  }, {});
+
+  for (const [loc, count] of Object.entries(locationCounts)) {
+    if (count >= 3) {
+      insights.push({
+        id: `grouping-${loc}`,
+        category: 'ROUTE_OPTIMIZATION',
+        title: 'Location Clustering Opportunity',
+        description: `You have ${count} events near "${loc}".`,
+        impact: "Save trips",
+        severity: 'low',
+        recommendedAction: 'Try scheduling these on the same day to minimize back-and-forth travel.',
+      });
+    }
+  }
+
+  return insights;
+}

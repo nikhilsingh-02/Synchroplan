@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
+import { useAIInsights } from "../../hooks/useAIInsights";
 
-import { generateAIInsights } from "../../services/aiInsights";
 
 import {
+
   Card,
   CardContent,
   CardHeader,
@@ -30,27 +31,16 @@ import {
 } from "lucide-react";
 
 export const Recommendations: React.FC = () => {
-  const { events, routes, expenses, recommendations } = useApp();
+  const { recommendations } = useApp();
+  const { insights: aiInsights, isLoading: isLoadingInsights } = useAIInsights();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
-  const [aiInsights, setAiInsights] = useState<any[]>([]);
-
-  /* ------------------------------------------------
-     Generate AI insights dynamically
-  ------------------------------------------------ */
-
-  useEffect(() => {
-    const insights = generateAIInsights(events, routes, expenses);
-    setAiInsights(insights);
-
-    // Optional debug
-    console.log("AI INSIGHTS:", insights);
-  }, [events, routes, expenses]);
 
   /* ------------------------------------------------
      Filter recommendations
   ------------------------------------------------ */
+
 
   const filteredRecommendations = recommendations.filter((rec) => {
     const matchesSearch =
@@ -84,6 +74,30 @@ export const Recommendations: React.FC = () => {
     if (score >= 0.9) return "text-green-600";
     if (score >= 0.7) return "text-blue-600";
     return "text-gray-600";
+  };
+
+  const getSeverityColor = (severity: string) => {
+    if (severity === "high") return "bg-red-600 border-red-200";
+    if (severity === "medium") return "bg-yellow-500 border-yellow-200";
+    return "bg-blue-600 border-blue-200";
+  };
+
+  const getSeverityBgColor = (severity: string) => {
+    if (severity === "high") return "bg-red-50 border-red-200";
+    if (severity === "medium") return "bg-yellow-50 border-yellow-200";
+    return "bg-blue-50 border-blue-200";
+  };
+
+  const getSeverityTextColor = (severity: string) => {
+    if (severity === "high") return "text-red-900";
+    if (severity === "medium") return "text-yellow-900";
+    return "text-blue-900";
+  };
+
+  const getSeveritySubTextColor = (severity: string) => {
+    if (severity === "high") return "text-red-700";
+    if (severity === "medium") return "text-yellow-700";
+    return "text-blue-700";
   };
 
   return (
@@ -139,7 +153,13 @@ export const Recommendations: React.FC = () => {
           AI‑Powered Insights
         </h2>
 
-        {aiInsights.length === 0 ? (
+        {isLoadingInsights ? (
+          <Card>
+            <CardContent className="py-8 text-center text-gray-500">
+              Generating AI insights...
+            </CardContent>
+          </Card>
+        ) : aiInsights.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-gray-500">
               No AI insights yet. Add schedules, routes, or expenses.
@@ -149,29 +169,61 @@ export const Recommendations: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
             {aiInsights.map((insight, idx) => (
-              <Card key={idx} className="border-blue-200 bg-blue-50">
+              <Card key={insight.id || idx} className={`border ${getSeverityBgColor(insight.severity)}`}>
 
                 <CardContent className="pt-6">
 
                   <div className="flex items-start gap-3">
 
-                    <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${getSeverityColor(insight.severity)} shadow-sm`}>
                       <Lightbulb className="h-5 w-5 text-white" />
                     </div>
 
                     <div>
 
-                      <h3 className="font-semibold text-blue-900">
+                      <h3 className={`font-semibold ${getSeverityTextColor(insight.severity)} leading-tight mb-1`}>
                         {insight.title}
                       </h3>
 
-                      <p className="text-sm text-blue-700">
+                      <p className={`text-sm ${getSeveritySubTextColor(insight.severity)} mb-3`}>
                         {insight.description}
                       </p>
 
-                      <Badge className="bg-blue-600 text-white mt-2">
+                      <Badge className={`${getSeverityColor(insight.severity)} text-white`}>
                         {insight.impact}
                       </Badge>
+                      
+                      <div className="mt-4 pt-3 border-t border-black/10">
+                        <p className={`text-xs font-medium ${getSeverityTextColor(insight.severity)}`}>
+                          <span className="opacity-75">Recommendation:</span><br/>
+                          {insight.recommendedAction}
+                        </p>
+
+                        {insight.optimizationDetails && (
+                          <div className="mt-3 grid grid-cols-2 gap-3 text-xs bg-white/60 p-3 rounded-md border border-black/5">
+                            <div>
+                              <p className="font-semibold text-gray-700 mb-1">
+                                Current ({Math.round(insight.optimizationDetails.originalTravelTime)}m travel)
+                              </p>
+                              <ol className="list-decimal pl-4 space-y-1 text-gray-600">
+                                {insight.optimizationDetails.originalOrder?.map((ev, i) => (
+                                  <li key={`orig-${ev.id}-${i}`} className="truncate" title={ev.title}>{ev.title}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-green-700 mb-1">
+                                Optimized ({Math.round(insight.optimizationDetails.optimizedTravelTime)}m travel)
+                              </p>
+                              <ol className="list-decimal pl-4 space-y-1 text-green-700">
+                                {insight.optimizationDetails.optimizedOrder.map((ev, i) => (
+                                  <li key={`opt-${ev.id}-${i}`} className="truncate" title={ev.title}>{ev.title}</li>
+                                ))}
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
                     </div>
 

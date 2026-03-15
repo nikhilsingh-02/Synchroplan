@@ -11,13 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertCircle, Calendar, Clock, MapPin, Plus, Trash2, Edit, CheckCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
-import { supabase } from "../../lib/supabase";
 
 export const Schedule: React.FC = () => {
 
-  const [events, setEvents] = useState<any[]>([]);
+  const { events, addEvent, conflicts, resolveConflict, updateEvent, deleteEvent } = useApp();
 
-  const { conflicts, resolveConflict, updateEvent, deleteEvent } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
 
@@ -31,36 +29,22 @@ export const Schedule: React.FC = () => {
     notes: '',
   });
 
-const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = (e: React.FormEvent) => {
   e.preventDefault();
 
   if (editingEvent) {
     updateEvent(editingEvent, formData);
-    toast.success("Event updated successfully");
+    toast.success('Event updated successfully');
   } else {
-      const { data, error } = await supabase.from("events").insert([
-        {
-          title: formData.title,
-          location: formData.location,
-          start_time: formData.startTime,
-          end_time: formData.endTime,
-          priority: formData.priority,
-          type: formData.type,
-          notes: formData.notes,
-        },
-      ]);
+    addEvent({
+      ...formData,
+      // latitude/longitude will be added when map integration is wired
+    });
+    toast.success('Event added successfully');
+  }
 
-      if (error) {
-        console.error(error);
-        toast.error("Failed to add event");
-        return;
-      }
-
-      toast.success("Event added successfully");
-    }
-
-    setDialogOpen(false);
-    resetForm();
+  setDialogOpen(false);
+  resetForm();
 };
   const resetForm = () => {
     setFormData({

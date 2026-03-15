@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -14,12 +16,28 @@ import {
   Shield,
   Zap,
   Save,
+  Calendar,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useGoogleCalendarSync } from '../../hooks/useGoogleCalendarSync';
+
 
 export const Settings: React.FC = () => {
   const { userPreferences, updatePreferences, budget, setBudget } = useApp();
+  const { signInWithGoogle, hasCalendarAccess } = useAuth();
+  const {
+    syncGoogleCalendar,
+    isSyncing,
+    lastSyncedAt,
+    importedCount,
+    error: syncError,
+  } = useGoogleCalendarSync();
   
+
   const [localPrefs, setLocalPrefs] = useState(userPreferences);
   const [localBudget, setLocalBudget] = useState(budget);
   const [notifications, setNotifications] = useState({
@@ -73,7 +91,7 @@ export const Settings: React.FC = () => {
             </div>
 
             <div>
-              <Label htmlFor="budget">Monthly Budget ($)</Label>
+              <Label htmlFor="budget">Monthly Budget (₹)</Label>
               <Input
                 id="budget"
                 type="number"
@@ -270,8 +288,91 @@ export const Settings: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+      {/* Calendar Integration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Calendar Integration
+          </CardTitle>
+          <CardDescription>Sync events from Google Calendar</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!hasCalendarAccess ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Connect your Google account to automatically import calendar events
+                into SynchroPlan for route optimization and conflict detection.
+              </p>
+              <Button
+                id="connect-google-calendar"
+                variant="outline"
+                className="w-full"
+                onClick={async () => {
+                  const { error } = await signInWithGoogle();
+                  if (error) {
+                    toast.error(`Failed to connect: ${error.message}`);
+                  }
+                  // On success the browser redirects — no further action needed
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Connect Google Calendar
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Connection status */}
+              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900">Google Calendar connected</p>
+                    {lastSyncedAt && (
+                      <p className="text-xs text-green-700">
+                        Last synced: {lastSyncedAt.toLocaleString()} · {importedCount} events
+                      </p>
+                    )}
+                    {!lastSyncedAt && (
+                      <p className="text-xs text-green-700">Ready to sync</p>
+                    )}
+                  </div>
+                </div>
+                <Badge className="bg-green-100 text-green-800 border-green-200">Active</Badge>
+              </div>
 
-      {/* Save Button */}
+              {/* Sync error */}
+              {syncError && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+                  <p className="text-sm text-red-800">{syncError}</p>
+                </div>
+              )}
+
+              {/* Sync now button */}
+              <Button
+                id="sync-google-calendar"
+                variant="outline"
+                className="w-full"
+                disabled={isSyncing}
+                onClick={async () => {
+                  await syncGoogleCalendar();
+                  if (!syncError) {
+                    toast.success(`Synced ${importedCount} events from Google Calendar`);
+                  }
+                }}
+              >
+                {isSyncing
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <RefreshCw className="h-4 w-4 mr-2" />}
+                {isSyncing ? 'Syncing…' : 'Sync Now'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       <div className="flex justify-end gap-2 sticky bottom-6">
         <Button variant="outline" onClick={() => {
           setLocalPrefs(userPreferences);
