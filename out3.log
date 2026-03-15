@@ -1,0 +1,17 @@
+Sending row: {
+  id: '32fd69f4-7ddb-452b-88c9-e766ca3114b0',
+  user_id: 'adfbcf3b-21bc-4781-a515-3efa464a627e',
+  title: 'Test Event',
+  location: '',
+  start_time: '2025-01-01T10:00',
+  end_time: '2025-01-01T11:00',
+  priority: 'medium',
+  type: 'meeting'
+}
+400 Bad Request Error Details:
+{
+  code: '42501',
+  details: null,
+  hint: null,
+  message: 'new row violates row-level security policy for table "events"'
+}

@@ -1,0 +1,23 @@
+Sending row: {
+  id: 'd10110ee-eadf-4aeb-81f7-4ebb84ec0856',
+  user_id: 'adfbcf3b-21bc-4781-a515-3efa464a627e',
+  title: 'Test Event',
+  location: '',
+  start_time: '2025-01-01T10:00',
+  end_time: '2025-01-01T11:00',
+  priority: 'medium',
+  type: 'meeting',
+  latitude: null,
+  longitude: null,
+  notes: null,
+  has_conflict: false,
+  external_id: null,
+  source: 'manual'
+}
+400 Bad Request Error Details:
+{
+  code: 'PGRST204',
+  details: null,
+  hint: null,
+  message: "Could not find the 'external_id' column of 'events' in the schema cache"
+}

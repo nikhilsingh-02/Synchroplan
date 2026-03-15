@@ -56,7 +56,7 @@ export function eventToDb(
   userId: string,
   event: Omit<Event, 'id'> & { id?: string }
 ): Omit<EventRow, 'created_at' | 'updated_at'> {
-  return {
+  const row: any = {
     id: event.id!,
     user_id: userId,
     title: event.title,
@@ -68,10 +68,20 @@ export function eventToDb(
     latitude: event.latitude ?? null,
     longitude: event.longitude ?? null,
     notes: event.notes ?? null,
-    has_conflict: event.hasConflict ?? false,
+    has_conflict: event.hasConflict ?? null,
     external_id: event.externalId ?? null,
-    source: event.source ?? 'manual',
+    source: event.source ?? null,
   };
+
+  // Strip null/undefined values to prevent PostgREST schema cache errors
+  // for columns that may not exist on older database instances.
+  Object.keys(row).forEach(key => {
+    if (row[key] === null || row[key] === undefined) {
+      delete row[key];
+    }
+  });
+
+  return row as Omit<EventRow, 'created_at' | 'updated_at'>;
 }
 
 
