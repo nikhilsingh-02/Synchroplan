@@ -1,0 +1,13 @@
+<anonymous_script>:1
+
+
+SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at parseJSONFromBytes (node:internal/deps/undici/undici:5852:19)
+    at successSteps (node:internal/deps/undici/undici:5833:27)
+    at fullyReadBody (node:internal/deps/undici/undici:4725:9)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at consumeBody (node:internal/deps/undici/undici:5842:7)
+    at fetchSchema (E:\SynchroPlan 2.0\test-schema.ts:16:18)
+
+Node.js v20.19.6

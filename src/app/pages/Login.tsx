@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { APP_NAME, APP_TAGLINE } from '../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -73,9 +74,9 @@ export const Login: React.FC = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Route className="h-10 w-10 text-blue-600" />
-            <h1 className="text-3xl font-bold">SmartSchedule</h1>
+            <h1 className="text-3xl font-bold">{APP_NAME}</h1>
           </div>
-          <p className="text-gray-600">AI-Powered Travel & Schedule Optimization</p>
+          <p className="text-gray-600">{APP_TAGLINE}</p>
         </div>
 
         <Card className="shadow-lg">

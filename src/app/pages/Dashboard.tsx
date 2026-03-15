@@ -1,5 +1,8 @@
 import React, { useEffect } from "react";
 import { useApp } from '../context/AppContext';
+import { useAIInsights } from '../../hooks/useAIInsights';
+import { useNearbyPlaces } from '../../hooks/useNearbyPlaces';
+import { SmartRecommendations } from '../components/dashboard/SmartRecommendations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -19,7 +22,36 @@ import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router';
 
 export const Dashboard: React.FC = () => {
-  const { events, conflicts, expenses, budget, routes, recommendations } = useApp();
+  const { events, conflicts, expenses, budget, routes } = useApp();
+  const { insights } = useAIInsights();
+  const { places } = useNearbyPlaces();
+
+  // Combine into a single unified array of interactive suggestions
+  const combinedInsights = [
+    // 1. Critical schedule conflicts requested by user
+    ...conflicts.map(c => ({
+      id: c.id,
+      category: 'CONFLICT_WARNING',
+      title: c.type.replace(/_/g, ' ').toUpperCase(),
+      description: c.description,
+      severity: c.severity,
+      conflictObj: c
+    })),
+    // 2. Schedule reorder/gap optimizations
+    ...insights.filter(i => 
+      ['SCHEDULE_REORDER_SUGGESTION', 'SCHEDULE_GAP_SUGGESTION', 'ROUTE_OPTIMIZATION', 'TIME_OPTIMIZATION', 'COST_OPTIMIZATION'].includes(i.category)
+    ),
+    // 3. Static place suggestions mapped to interactive cards
+    ...places.slice(0, 3).map(p => ({
+      id: p.id,
+      category: 'PLACE_SUGGESTION',
+      title: p.name,
+      description: p.location,
+      rating: p.rating,
+      distance: p.distance,
+      placeObj: p
+    }))
+  ];
 
   const todayEvents = events.filter(event => {
     const eventDate = format(parseISO(event.startTime), 'yyyy-MM-dd');
@@ -190,43 +222,7 @@ export const Dashboard: React.FC = () => {
         </Card>
 
         {/* AI Recommendations */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Smart Recommendations
-            </CardTitle>
-            <CardDescription>AI-powered suggestions for you</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recommendations.slice(0, 3).map((rec) => (
-                <div key={rec.id} className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-medium">{rec.name}</h4>
-                      <p className="text-sm text-gray-600">{rec.location}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          ⭐ {rec.rating}
-                        </Badge>
-                        <span className="text-xs text-gray-500">{rec.distance} km away</span>
-                      </div>
-                    </div>
-                    <div className="text-sm font-medium text-blue-600">
-                      {rec.priceRange}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Link to="/recommendations">
-                <Button variant="outline" className="w-full">
-                  View All Recommendations
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <SmartRecommendations insights={combinedInsights} />
 
         {/* Recent Expenses */}
         <Card>

@@ -143,11 +143,12 @@ export function routeToDb(
 export interface ExpenseRow {
   id: string;
   user_id: string;
+  title: string;
   category: Expense['category'];
   amount: number;
-  description: string;
-  date: string;
-  related_event_id: string | null;
+  currency?: string;
+  expense_date: string;
+  notes?: string | null;
   created_at: string;
 }
 
@@ -156,9 +157,8 @@ export function expenseFromDb(row: ExpenseRow): Expense {
     id: row.id,
     category: row.category,
     amount: Number(row.amount),
-    description: row.description,
-    date: row.date,
-    relatedEventId: row.related_event_id ?? undefined,
+    description: row.title || row.notes || '',
+    date: row.expense_date || row.created_at,
   };
 }
 
@@ -166,15 +166,22 @@ export function expenseToDb(
   userId: string,
   expense: Omit<Expense, 'id'> & { id?: string }
 ): Omit<ExpenseRow, 'created_at'> {
-  return {
+  const row: any = {
     id: expense.id!,
     user_id: userId,
+    title: expense.description || 'Expense',
     category: expense.category,
     amount: expense.amount,
-    description: expense.description,
-    date: expense.date,
-    related_event_id: expense.relatedEventId ?? null,
+    expense_date: expense.date,
   };
+
+  Object.keys(row).forEach(key => {
+    if (row[key] === null || row[key] === undefined) {
+      delete row[key];
+    }
+  });
+
+  return row as Omit<ExpenseRow, 'created_at'>;
 }
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
