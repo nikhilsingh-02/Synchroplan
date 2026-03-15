@@ -20,9 +20,18 @@ export type InsightCategory =
   | 'COST_OPTIMIZATION'
   | 'SCHEDULE_CONFLICT'
   | 'TRAVEL_BUFFER_WARNING'
-  | 'SCHEDULE_REORDER_SUGGESTION';
+  | 'SCHEDULE_REORDER_SUGGESTION'
+  | 'SCHEDULE_GAP_SUGGESTION';
 
 export type InsightSeverity = 'low' | 'medium' | 'high';
+
+export interface NearbyPlaceSuggestion {
+  name: string;
+  category: 'restaurant' | 'cafe' | 'coworking' | 'service';
+  distance: number;           // km
+  latitude: number;
+  longitude: number;
+}
 
 export interface AIInsight {
   id: string;
@@ -33,6 +42,7 @@ export interface AIInsight {
   severity: InsightSeverity;
   recommendedAction: string;     // Actionable next step
   relatedEventIds?: string[];
+  nearbySuggestions?: NearbyPlaceSuggestion[];  // Gap-aware nearby place suggestions
   optimizationDetails?: {
     originalTravelTime: number;
     optimizedTravelTime: number;
@@ -223,6 +233,117 @@ function analyzeScheduleFlow(events: Event[], routes: TravelRoute[]): AIInsight[
         recommendedAction: 'Try scheduling these on the same day to minimize back-and-forth travel.',
       });
     }
+  }
+
+  return insights;
+}
+
+// ─── Schedule Gap Intelligence ─────────────────────────────────────────────────
+//
+// Accepts nearby places (fetched from the Overpass service by the calling hook)
+// and the user's schedule.  For every gap > 30 minutes between consecutive
+// same-day events it builds a contextual AI insight surfacing relevant nearby
+// suggestions WITHOUT touching scheduleOptimizer.ts.
+
+import type { NearbyPlace } from '../places/overpass.service';
+
+/**
+ * Generates schedule-gap insights that suggest nearby places for free windows.
+ *
+ * @param events        The user's calendar events (sorted externally or not)
+ * @param nearbyPlaces  Raw NearbyPlace objects from the Overpass service
+ */
+export function generateScheduleGapInsights(
+  events: Event[],
+  nearbyPlaces: NearbyPlace[],
+): AIInsight[] {
+  if (!nearbyPlaces || nearbyPlaces.length === 0) return [];
+
+  const insights: AIInsight[] = [];
+
+  const sorted = [...events]
+    .filter(e => e.startTime && e.endTime)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const current = sorted[i];
+    const next    = sorted[i + 1];
+
+    const currentEnd  = new Date(current.endTime);
+    const nextStart   = new Date(next.startTime);
+
+    // Only process same-day gaps
+    if (currentEnd.toDateString() !== nextStart.toDateString()) continue;
+
+    const gapMinutes = differenceInMinutes(nextStart, currentEnd);
+
+    // Only act on gaps > 30 minutes
+    if (gapMinutes < 30) continue;
+
+    // Pick the best category based on gap length and time of day
+    const hour = currentEnd.getHours();
+    const isLunchWindow = hour >= 11 && hour <= 14;
+    const isMorning     = hour >= 7  && hour <= 10;
+
+    let wantedCategories: NearbyPlace['category'][];
+    let contextLabel: string;
+
+    if (gapMinutes < 60) {
+      // Short gap — cafes, quick bites
+      wantedCategories = ['cafe'];
+      contextLabel = 'nearby cafes';
+    } else if (isLunchWindow) {
+      // Lunch window — restaurants first, then cafes
+      wantedCategories = ['restaurant', 'cafe'];
+      contextLabel = 'nearby restaurants and cafes';
+    } else if (isMorning) {
+      // Morning — cafes and coworking spaces
+      wantedCategories = ['cafe', 'coworking'];
+      contextLabel = 'nearby cafes and coworking spaces';
+    } else {
+      // General — cafes, coworking, restaurants
+      wantedCategories = ['cafe', 'coworking', 'restaurant'];
+      contextLabel = 'nearby places';
+    }
+
+    // Filter by category and max 500 m radius for gap suggestions
+    const suggestions = nearbyPlaces
+      .filter(p => wantedCategories.includes(p.category) && p.distance <= 0.5)
+      .slice(0, 3);
+
+    if (suggestions.length === 0) continue;
+
+    const gapHours = Math.floor(gapMinutes / 60);
+    const gapMins  = gapMinutes % 60;
+    const gapLabel = gapHours > 0
+      ? `${gapHours}h ${gapMins > 0 ? `${gapMins}m` : ''}`.trim()
+      : `${gapMins}m`;
+
+    const currentEndStr = format(currentEnd, 'h:mm a');
+    const nextStartStr  = format(nextStart, 'h:mm a');
+
+    const nearbySuggestions: NearbyPlaceSuggestion[] = suggestions.map(p => ({
+      name:      p.name,
+      category:  p.category as NearbyPlaceSuggestion['category'],
+      distance:  p.distance,
+      latitude:  p.latitude,
+      longitude: p.longitude,
+    }));
+
+    insights.push({
+      id:       `gap-${current.id}-${next.id}`,
+      category: 'SCHEDULE_GAP_SUGGESTION',
+      title:    `${gapLabel} gap — ${contextLabel} nearby`,
+      description:
+        `You have a ${gapLabel} free window between "${current.title}" (ends ${currentEndStr}) ` +
+        `and "${next.title}" (starts ${nextStartStr}). ` +
+        `${suggestions.length} ${contextLabel.replace('nearby ', '')} within 500 m:`,
+      impact:            `${gapLabel} free`,
+      severity:          gapMinutes >= 90 ? 'medium' : 'low',
+      recommendedAction: `Visit one of the suggested ${contextLabel} during this gap to make the most of your time.`,
+      relatedEventIds:   [current.id, next.id],
+      nearbySuggestions,
+    });
   }
 
   return insights;

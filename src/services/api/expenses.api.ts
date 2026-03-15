@@ -21,7 +21,7 @@ export async function fetchAll(userId: string): Promise<Expense[]> {
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
-    .order('date', { ascending: false });
+    .order('created_at', { ascending: false });
 
   if (error) throw new Error(`[expenses.api] fetchAll: ${error.message}`);
   return (data as ExpenseRow[]).map(expenseFromDb);

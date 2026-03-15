@@ -10,8 +10,9 @@ import { useEvents } from './useEvents';
 import { useRoutes } from './useRoutes';
 import { useExpenses } from './useExpenses';
 import { usePreferences, DEFAULT_PREFERENCES } from './usePreferences';
-import { generateInsights, type AIInsight } from '../services/ai/optimization.engine';
+import { generateInsights, generateScheduleGapInsights, type AIInsight } from '../services/ai/optimization.engine';
 import { optimizeDailySchedule } from '../services/ai/scheduleOptimizer';
+import { useNearbyPlaces } from './useNearbyPlaces';
 import { supabase } from '../lib/supabase';
 
 
@@ -35,6 +36,7 @@ export function useAIInsights(): { insights: AIInsight[]; isLoading: boolean } {
   const { data: routes = [],     isLoading: req2 } = useRoutes(userId);
   const { data: expenses = [],   isLoading: req3 } = useExpenses(userId);
   const { data: prefs = DEFAULT_PREFERENCES, isLoading: req4 } = usePreferences(userId);
+  const { rawPlaces } = useNearbyPlaces();
 
   const isLoading = req1 || req2 || req3 || req4;
 
@@ -79,8 +81,11 @@ export function useAIInsights(): { insights: AIInsight[]; isLoading: boolean } {
       }
     }
 
-    return [...optimizerInsights, ...baseInsights];
-  }, [events, routes, expenses, prefs, isLoading]);
+    // 3. Schedule Gap Intelligence (location-aware)
+    const gapInsights = generateScheduleGapInsights(events, rawPlaces);
+
+    return [...optimizerInsights, ...gapInsights, ...baseInsights];
+  }, [events, routes, expenses, prefs, isLoading, rawPlaces]);
 
 
   return { insights, isLoading };

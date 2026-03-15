@@ -29,6 +29,10 @@ export const ExpenseTracker: React.FC = () => {
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [newBudget, setNewBudget] = useState(budget);
   
+  React.useEffect(() => {
+    setNewBudget(budget);
+  }, [budget]);
+
   const [formData, setFormData] = useState({
     category: 'transport' as 'transport' | 'food' | 'accommodation' | 'other',
     amount: '',

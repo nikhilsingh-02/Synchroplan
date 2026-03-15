@@ -40,6 +40,12 @@ export const Settings: React.FC = () => {
 
   const [localPrefs, setLocalPrefs] = useState(userPreferences);
   const [localBudget, setLocalBudget] = useState(budget);
+  
+  React.useEffect(() => {
+    setLocalPrefs(userPreferences);
+    setLocalBudget(budget);
+  }, [userPreferences, budget]);
+
   const [notifications, setNotifications] = useState({
     conflicts: true,
     budgetAlerts: true,
@@ -48,8 +54,10 @@ export const Settings: React.FC = () => {
   });
 
   const handleSave = () => {
-    updatePreferences(localPrefs);
-    setBudget(localBudget);
+    updatePreferences({
+      ...localPrefs,
+      maxBudget: localBudget
+    });
     toast.success('Settings saved successfully');
   };
 
