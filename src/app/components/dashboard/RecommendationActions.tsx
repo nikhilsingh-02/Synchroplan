@@ -85,9 +85,25 @@ export const RecommendationActions: React.FC<{ insight: any, onIgnore: (id: stri
   };
 
   if (insight.category === 'PLACE_SUGGESTION') {
+    const handleViewRoute = () => {
+      const lat = insight.placeObj?.latitude;
+      const lng = insight.placeObj?.longitude;
+      const dest = encodeURIComponent(insight.title);
+
+      if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+        // Full coordinate-based navigation — pre-fills both destination field and map
+        navigate(`/travel?lat=${lat}&lng=${lng}&destination=${dest}`);
+      } else {
+        // Coordinates unavailable: navigate with destination name only so the
+        // TravelPlanner can still pre-fill the destination text input.
+        console.warn('[RecommendationActions] Missing coordinates for:', insight.title);
+        navigate(`/travel?destination=${dest}`);
+      }
+    };
+
     return (
       <div className="flex flex-wrap gap-2 mt-2">
-        <Button size="sm" variant="outline" onClick={() => navigate(`/travel-planner?lat=${insight.placeObj?.latitude}&lng=${insight.placeObj?.longitude}&destination=${encodeURIComponent(insight.title)}`)}>
+        <Button size="sm" variant="outline" onClick={handleViewRoute}>
           <MapPin className="h-4 w-4 mr-2" />
           View Route
         </Button>

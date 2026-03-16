@@ -11,6 +11,7 @@
 
 import { format, differenceInMinutes } from 'date-fns';
 import type { Event, TravelRoute, Expense, UserPreferences } from '../../types';
+import { getTravelDuration } from './scheduleOptimizer';
 
 // ─── Insight Types ────────────────────────────────────────────────────────────
 
@@ -189,23 +190,17 @@ function analyzeScheduleFlow(events: Event[], routes: TravelRoute[]): AIInsight[
 
     // 2. Travel Buffer Warning
     if (gapMinutes > 0 && current.location && next.location) {
-      // Find a matching route
-      const route = routes.find(r =>
-        (r.from.includes(current.location) && r.to.includes(next.location)) ||
-        (current.location.includes(r.from) && next.location.includes(r.to))
-      );
+      const travelTime = getTravelDuration(current, next, routes);
 
-      const requiredTravelMin = route?.duration ?? 25; // fallback estimate
-
-      if (gapMinutes < requiredTravelMin) {
+      if (gapMinutes < travelTime) {
         insights.push({
           id: `buffer-${current.id}-${next.id}`,
           category: 'TRAVEL_BUFFER_WARNING',
           title: 'Insufficient Travel Buffer',
-          description: `You have ${gapMinutes} mins between events, but travel requires ~${requiredTravelMin} mins.`,
+          description: `You have ${gapMinutes} mins between events, but travel requires ~${Math.floor(travelTime)} mins.`,
           impact: "Possible delay",
           severity: 'high',
-          recommendedAction: `Reschedule "${next.title}" to start ${requiredTravelMin - gapMinutes} minutes later.`,
+          recommendedAction: `Reschedule "${next.title}" to start ${Math.ceil(travelTime - gapMinutes)} minutes later.`,
           relatedEventIds: [current.id, next.id],
         });
       }
@@ -256,6 +251,7 @@ import type { NearbyPlace } from '../places/overpass.service';
 export function generateScheduleGapInsights(
   events: Event[],
   nearbyPlaces: NearbyPlace[],
+  routes: TravelRoute[],
 ): AIInsight[] {
   if (!nearbyPlaces || nearbyPlaces.length === 0) return [];
 
@@ -276,9 +272,26 @@ export function generateScheduleGapInsights(
     if (currentEnd.toDateString() !== nextStart.toDateString()) continue;
 
     const gapMinutes = differenceInMinutes(nextStart, currentEnd);
+    const travelTime = getTravelDuration(current, next, routes);
+    const availableGap = gapMinutes - travelTime;
 
-    // Only act on gaps > 30 minutes
-    if (gapMinutes < 30) continue;
+    // Travel Conflict Detection
+    if (availableGap < 0) {
+      insights.push({
+        id: `conflict-${current.id}-${next.id}`,
+        category: 'SCHEDULE_CONFLICT',
+        title: 'Travel Time Conflict',
+        description: `Travel time between "${current.title}" and "${next.title}" is insufficient. You need ~${Math.floor(travelTime)} mins, but only have ${gapMinutes} mins.`,
+        impact: `Needs +${Math.ceil(Math.abs(availableGap))} mins`,
+        severity: 'high',
+        recommendedAction: 'Reschedule your events to allow enough travel time.',
+        relatedEventIds: [current.id, next.id],
+      });
+      continue; // Skip place recommendations
+    }
+
+    // Time Feasibility Check: Assume minimum activity takes 30 mins
+    if (availableGap < 30) continue;
 
     // Pick the best category based on gap length and time of day
     const hour = currentEnd.getHours();
@@ -289,26 +302,34 @@ export function generateScheduleGapInsights(
     let contextLabel: string;
 
     if (gapMinutes < 60) {
-      // Short gap — cafes, quick bites
       wantedCategories = ['cafe'];
       contextLabel = 'nearby cafes';
     } else if (isLunchWindow) {
-      // Lunch window — restaurants first, then cafes
       wantedCategories = ['restaurant', 'cafe'];
       contextLabel = 'nearby restaurants and cafes';
     } else if (isMorning) {
-      // Morning — cafes and coworking spaces
       wantedCategories = ['cafe', 'coworking'];
       contextLabel = 'nearby cafes and coworking spaces';
     } else {
-      // General — cafes, coworking, restaurants
       wantedCategories = ['cafe', 'coworking', 'restaurant'];
       contextLabel = 'nearby places';
     }
 
-    // Filter by category and max 500 m radius for gap suggestions
+    // Dynamic max distance based on time constraints:
+    // Walking speed = ~5 km/h -> 12 mins per km -> round trip = 24 mins per km.
+    // distance * 24 <= availableGap - 30 (minimum activity time).
+    const dynamicMaxKm = Math.min(5, Math.max(0.1, (availableGap - 30) / 24));
+
+    // Filter by feasibility constraints, then compute recommendation score
     const suggestions = nearbyPlaces
-      .filter(p => wantedCategories.includes(p.category) && p.distance <= 0.5)
+      .filter(p => wantedCategories.includes(p.category) && p.distance <= dynamicMaxKm)
+      .map(p => {
+        const proximityScore = Math.max(0, 10 - p.distance * 2); 
+        const syntheticRating = (p.id.split('').reduce((n, c) => n + c.charCodeAt(0), 0) % 5) + 1;
+        const score = proximityScore + syntheticRating; // Higher is better
+        return { ...p, score };
+      })
+      .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
     if (suggestions.length === 0) continue;

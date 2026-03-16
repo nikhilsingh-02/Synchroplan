@@ -82,7 +82,7 @@ export function useAIInsights(): { insights: AIInsight[]; isLoading: boolean } {
     }
 
     // 3. Schedule Gap Intelligence (location-aware)
-    const gapInsights = generateScheduleGapInsights(events, rawPlaces);
+    const gapInsights = generateScheduleGapInsights(events, rawPlaces, routes);
 
     return [...optimizerInsights, ...gapInsights, ...baseInsights];
   }, [events, routes, expenses, prefs, isLoading, rawPlaces]);

@@ -18,10 +18,10 @@ export interface OptimizationResult {
 }
 
 /**
- * Helper to fetch travel duration from the existing Mapbox routes table.
- * Falls back to 25 mins if no route has been generated yet between locations.
+ * Helper to fetch travel duration from the existing Mapbox/ORS routes table.
+ * Falls back to Haversine geographic estimation if coords exist.
  */
-function getTravelDuration(fromNode: Event, toNode: Event, routes: TravelRoute[]): number {
+export function getTravelDuration(fromNode: Event, toNode: Event, routes: TravelRoute[]): number {
   if (!fromNode.location || !toNode.location) return 0; // Same location or missing
 
   const fromPrefix = fromNode.location.split(',')[0].trim().toLowerCase();
@@ -36,7 +36,22 @@ function getTravelDuration(fromNode: Event, toNode: Event, routes: TravelRoute[]
            (rFrom.includes(toPrefix) && rTo.includes(fromPrefix));
   });
 
-  return route?.duration ?? 25; // Default estimate
+  if (route) return route.duration;
+
+  // Haversine fallback for un-routed distant events
+  if (fromNode.latitude && fromNode.longitude && toNode.latitude && toNode.longitude) {
+    const R = 6371; // km
+    const dLat = (toNode.latitude - fromNode.latitude) * Math.PI / 180;
+    const dLon = (toNode.longitude - fromNode.longitude) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(fromNode.latitude * Math.PI / 180) * Math.cos(toNode.latitude * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    // Assume 50 km/h average speed + 10 mins buffer
+    return (dist / 50) * 60 + 10;
+  }
+
+  return 25; // Default fallback
 }
 
 /**

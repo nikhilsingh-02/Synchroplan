@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router';
 import { useApp } from '../context/AppContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -28,11 +29,40 @@ import { RouteMap, type MapMarker } from '../../components/maps/RouteMap';
 
 export const TravelPlanner: React.FC = () => {
   const { routes, addRoute, updateEvent, events } = useApp();
+  const location = useLocation();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [mode, setMode] = useState<TravelRoute['mode']>('driving');
   const [isCalculating, setIsCalculating] = useState(false);
   const [showResults, setShowResults] = useState(false);
+
+  // ── Read query params from navigation (e.g. from Dashboard "View Route") ──
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const destParam = params.get('destination');
+    const latParam  = params.get('lat');
+    const lngParam  = params.get('lng');
+
+    // Pre-fill destination if provided
+    if (destParam) {
+      setDestination(destParam);
+    }
+
+    // Validate lat/lng — guard against literal 'undefined' strings or NaN
+    const lat = latParam !== null && latParam !== 'undefined' ? parseFloat(latParam) : NaN;
+    const lng = lngParam !== null && lngParam !== 'undefined' ? parseFloat(lngParam) : NaN;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      // Coordinates absent or invalid; destination field is pre-filled above;
+      // the user can type an origin and hit Find Routes normally.
+      if (latParam || lngParam) {
+        console.warn('[TravelPlanner] Invalid coordinates in URL — lat:', latParam, 'lng:', lngParam);
+      }
+    }
+    // Note: if coordinates ARE valid they are available for future map pre-centering
+    // (currently the map centres on the calculated route, so no extra action needed).
+  }, [location.search]);
+
 
   // Map state — updated after a successful route calculation
   const [activeRouteResult, setActiveRouteResult] = useState<RouteResult | null>(null);

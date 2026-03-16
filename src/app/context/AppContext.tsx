@@ -28,6 +28,7 @@ import {
 } from '../../hooks/useExpenses';
 import { useRoutes, useCreateRoute } from '../../hooks/useRoutes';
 import { usePreferences, useUpsertPreferences, DEFAULT_PREFERENCES } from '../../hooks/usePreferences';
+import { getTravelDuration } from '../../services/ai/scheduleOptimizer';
 
 // Re-export domain types so existing page-level imports continue to work.
 export type { Event, TravelRoute, Expense, Recommendation, Conflict, UserPreferences } from '../../types';
@@ -181,23 +182,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Insufficient travel buffer
-      // Look up the shortest saved route between these two locations first.
-      // Fall back to 20 min only when no route data exists yet.
       const gapMin = (nextStart.getTime() - currentEnd.getTime()) / 60_000;
-
-      const matchingRoute = routes
-        .filter(r =>
-          r.from.toLowerCase().includes(current.location.split(',')[0].toLowerCase()) ||
-          current.location.toLowerCase().includes(r.from.toLowerCase())
-        )
-        .filter(r =>
-          r.to.toLowerCase().includes(next.location.split(',')[0].toLowerCase()) ||
-          next.location.toLowerCase().includes(r.to.toLowerCase())
-        )
-        .sort((a, b) => a.duration - b.duration)[0];   // pick the fastest
-
-      const travelMin = matchingRoute?.duration ?? 20;
-      const travelSource = matchingRoute ? 'Mapbox route data' : 'estimated';
+      const travelMin = getTravelDuration(current, next, routes);
 
       if (gapMin < travelMin && gapMin > 0) {
         detected.push({
@@ -205,7 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           eventIds: [current.id, next.id],
           type: 'insufficient_travel_time',
           severity: 'high',
-          description: `Only ${Math.floor(gapMin)} min between events, but ${travelMin} min needed for travel (${travelSource})`,
+          description: `⚠ Travel time between events is insufficient. Only ${Math.floor(gapMin)} min available, but ~${Math.floor(travelMin)} min needed.`,
           suggestions: [
             `Add ${Math.ceil(travelMin - gapMin)} minutes buffer`,
             `Use faster transportation`,

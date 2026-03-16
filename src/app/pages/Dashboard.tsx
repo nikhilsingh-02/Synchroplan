@@ -24,7 +24,7 @@ import { Link } from 'react-router';
 export const Dashboard: React.FC = () => {
   const { events, conflicts, expenses, budget, routes } = useApp();
   const { insights } = useAIInsights();
-  const { places } = useNearbyPlaces();
+  const { places, rawPlaces } = useNearbyPlaces();
 
   // Combine into a single unified array of interactive suggestions
   const combinedInsights = [
@@ -39,7 +39,7 @@ export const Dashboard: React.FC = () => {
     })),
     // 2. Schedule reorder/gap optimizations
     ...insights.filter(i => 
-      ['SCHEDULE_REORDER_SUGGESTION', 'SCHEDULE_GAP_SUGGESTION', 'ROUTE_OPTIMIZATION', 'TIME_OPTIMIZATION', 'COST_OPTIMIZATION'].includes(i.category)
+      ['SCHEDULE_REORDER_SUGGESTION', 'SCHEDULE_GAP_SUGGESTION', 'ROUTE_OPTIMIZATION', 'TIME_OPTIMIZATION', 'COST_OPTIMIZATION', 'SCHEDULE_CONFLICT'].includes(i.category)
     ),
     // 3. Static place suggestions mapped to interactive cards
     ...places.slice(0, 3).map(p => ({
@@ -49,7 +49,8 @@ export const Dashboard: React.FC = () => {
       description: p.location,
       rating: p.rating,
       distance: p.distance,
-      placeObj: p
+      // Use the raw NearbyPlace so placeObj carries real latitude/longitude
+      placeObj: rawPlaces.find(r => r.id === p.id) ?? p,
     }))
   ];
 
