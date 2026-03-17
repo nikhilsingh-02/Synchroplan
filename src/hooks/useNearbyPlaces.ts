@@ -99,7 +99,7 @@ export function useNearbyPlaces(): UseNearbyPlacesReturn {
     queryKey:        ['nearbyPlaces', lat, lng],
     queryFn:         () => {
       console.log('[NearbyPlaces] Fetching places for:', lat, lng);
-      return fetchNearbyPlaces(lat, lng, 2000, 60);
+      return fetchNearbyPlaces(lat, lng, 5000, 60);
     },
     enabled:         !isLocating && !!userLocation,
     staleTime:       10 * 60 * 1000,       // 10 minutes

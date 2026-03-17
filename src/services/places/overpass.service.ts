@@ -62,12 +62,12 @@ function detectCategory(tags: Record<string, string>): PlaceCategory | null {
   const shop    = tags['shop']    ?? '';
   const office  = tags['office']  ?? '';
 
-  if (['restaurant', 'fast_food', 'food_court', 'bar', 'pub', 'biergarten'].includes(amenity)) return 'restaurant';
+  if (['restaurant','food', 'fast_food', 'food_court', 'bar', 'pub', 'biergarten'].includes(amenity)) return 'restaurant';
   if (['cafe', 'coffee_shop', 'ice_cream', 'juice_bar'].includes(amenity)) return 'cafe';
   if (['hotel', 'hostel', 'motel', 'guest_house', 'apartment'].includes(tourism)) return 'hotel';
   if (amenity === 'coworking_space' || office === 'coworking') return 'coworking';
   // Broad service catch — many small shops are categorised under 'shop' in OSM
-  if (shop || ['bank', 'atm', 'pharmacy', 'hospital', 'post_office', 'fuel', 'laundry', 'supermarket'].includes(amenity)) return 'service';
+  if (shop || ['bank', 'atm', 'pharmacy', 'hospital', 'medical', 'doctor', 'post_office', 'fuel', 'laundry', 'supermarket'].includes(amenity)) return 'service';
 
   return null;
 }
@@ -113,7 +113,7 @@ async function _fetch(lat: number, lng: number, radius: number): Promise<NearbyP
   const query = `
     [out:json][timeout:20];
     (
-      node["amenity"~"^(restaurant|cafe|fast_food|bar|pub|biergarten|food_court|ice_cream|hotel|hostel|bank|atm|pharmacy|hospital|clinic|post_office|fuel|laundry|coworking_space|supermarket)$"](around:${radius},${lat},${lng});
+      node["amenity"~"^(restaurant|cafe|fast_food|biergarten|food_court|ice_cream|hotel|hostel|bank|atm|pharmacy|hospital|clinic|doctors|dentist|post_office|fuel|laundry|coworking_space|supermarket|college|school|university|library|kindergarten)$"](around:${radius},${lat},${lng});
       node["tourism"~"^(hotel|hostel|motel|guest_house|apartment)$"](around:${radius},${lat},${lng});
       node["shop"](around:${radius},${lat},${lng});
       node["office"="coworking"](around:${radius},${lat},${lng});
