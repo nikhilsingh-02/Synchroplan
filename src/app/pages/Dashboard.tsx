@@ -1,8 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useMemo } from "react";
 import { useApp } from '../context/AppContext';
 import { useAIInsights } from '../../hooks/useAIInsights';
 import { useNearbyPlaces } from '../../hooks/useNearbyPlaces';
 import { SmartRecommendations } from '../components/dashboard/SmartRecommendations';
+import { DayTimeline } from '../components/dashboard/DayTimeline';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -17,18 +18,22 @@ import {
   Clock,
   Navigation,
   Zap,
+  Sparkles,
+  CloudSun,
+  ShieldCheck,
+  ChevronRight,
+  TrendingDown,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router';
+import { motion } from 'framer-motion';
 
 export const Dashboard: React.FC = () => {
   const { events, conflicts, expenses, budget, routes } = useApp();
   const { insights } = useAIInsights();
-  const { places, rawPlaces } = useNearbyPlaces();
+  const { places } = useNearbyPlaces();
 
-  // Combine into a single unified array of interactive suggestions
   const combinedInsights = [
-    // 1. Critical schedule conflicts requested by user
     ...conflicts.map(c => ({
       id: c.id,
       category: 'CONFLICT_WARNING',
@@ -37,11 +42,9 @@ export const Dashboard: React.FC = () => {
       severity: c.severity,
       conflictObj: c
     })),
-    // 2. Schedule reorder/gap optimizations
     ...insights.filter(i => 
       ['SCHEDULE_REORDER_SUGGESTION', 'SCHEDULE_GAP_SUGGESTION', 'ROUTE_OPTIMIZATION', 'TIME_OPTIMIZATION', 'COST_OPTIMIZATION', 'SCHEDULE_CONFLICT'].includes(i.category)
     ),
-    // 3. Static place suggestions mapped to interactive cards
     ...places.slice(0, 3).map(p => ({
       id: p.id,
       category: 'PLACE_SUGGESTION',
@@ -49,269 +52,153 @@ export const Dashboard: React.FC = () => {
       description: p.location,
       rating: p.rating,
       distance: p.distance,
-      // Use the raw NearbyPlace so placeObj carries real latitude/longitude
-      placeObj: rawPlaces.find(r => r.id === p.id) ?? p,
+      placeObj: p,
     }))
   ];
 
-  const todayEvents = events.filter(event => {
+  const todayEvents = useMemo(() => events.filter(event => {
     const eventDate = format(parseISO(event.startTime), 'yyyy-MM-dd');
     const today = format(new Date(), 'yyyy-MM-dd');
     return eventDate === today;
-  });
+  }), [events]);
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const budgetPercentage = (totalExpenses / budget) * 100;
-
-  const upcomingEvent = todayEvents.sort((a, b) => 
-    new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-  )[0];
-
   const highPriorityConflicts = conflicts.filter(c => c.severity === 'high');
   const optimalRoutes = routes.filter(r => r.status === 'optimal').length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-gray-600">
-          {format(new Date(), 'EEEE, MMMM d, yyyy')}
-        </p>
+    <div className="space-y-12 animate-in fade-in duration-1000 pb-20">
+      
+      {/* ─── Premium Header ─── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
+        <div className="space-y-1">
+           <h1 className="text-5xl font-black tracking-tighter text-gray-900 leading-none">
+             Welcome back, <span className="text-gradient-primary">Vivekj</span>.
+           </h1>
+           <p className="text-lg text-gray-500 font-bold tracking-tight">
+             {format(new Date(), 'EEEE, MMMM do')} • All systems optimized.
+           </p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+           <div className="glass px-6 py-4 rounded-3xl flex items-center gap-4 border-l-4 border-l-amber-400">
+             <div className="p-2 bg-amber-50 rounded-xl">
+               <CloudSun className="h-5 w-5 text-amber-500" />
+             </div>
+             <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Local Forecast</p>
+               <p className="text-sm font-black text-gray-800">28°C • Mostly Sunny</p>
+             </div>
+           </div>
+           
+           <div className="glass px-6 py-4 rounded-3xl flex items-center gap-4 border-l-4 border-l-indigo-500">
+             <div className="p-2 bg-indigo-50 rounded-xl">
+               <ShieldCheck className="h-5 w-5 text-indigo-600" />
+             </div>
+             <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Status</p>
+               <p className="text-sm font-black text-gray-800">Synch Active</p>
+             </div>
+           </div>
+        </div>
       </div>
 
-      {/* Alert Banner */}
-      {highPriorityConflicts.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-red-900">
-                  {highPriorityConflicts.length} Critical Schedule Conflict{highPriorityConflicts.length > 1 ? 's' : ''} Detected
-                </h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {highPriorityConflicts[0].description}
-                </p>
-                <Link to="/schedule">
-                  <Button variant="destructive" size="sm" className="mt-3">
-                    Resolve Now
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ─── Visual Storytelling: Day Timeline ─── */}
+      <section className="animate-in slide-in-from-bottom duration-700">
+         <DayTimeline events={events} routes={routes} />
+      </section>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Today's Events
-              </CardTitle>
-              <Calendar className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{todayEvents.length}</div>
-            <p className="text-xs text-gray-500 mt-1">
-              {todayEvents.filter(e => e.priority === 'high').length} high priority
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Active Conflicts
-              </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{conflicts.length}</div>
-            <p className="text-xs text-gray-500 mt-1">
-              {highPriorityConflicts.length} critical
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Budget Status
-              </CardTitle>
-              <IndianRupee className="h-4 w-4 text-green-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{budgetPercentage.toFixed(0)}%</div>
-            <Progress value={budgetPercentage} className="mt-2" />
-            <p className="text-xs text-gray-500 mt-1">
-              {formatINR(totalExpenses)} of {formatINR(budget)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Optimal Routes
-              </CardTitle>
-              <Navigation className="h-4 w-4 text-purple-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{optimalRoutes}</div>
-            <p className="text-xs text-gray-500 mt-1">
-              Available routes analyzed
-            </p>
-          </CardContent>
-        </Card>
+      {/* ─── Quick Summary & Metrics ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { title: "Today's Events", value: todayEvents.length, sub: `${todayEvents.filter(e => e.priority === 'high').length} high priority`, icon: Calendar, color: "text-blue-500", bg: "bg-blue-50" },
+          { title: "Active Conflicts", value: conflicts.length, sub: `${highPriorityConflicts.length} critical`, icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50" },
+          { title: "Budget Used", value: `${budgetPercentage.toFixed(0)}%`, sub: `${formatINR(budget - totalExpenses)} remaining`, icon: IndianRupee, color: "text-emerald-500", bg: "bg-emerald-50" },
+          { title: "Optimal Routes", value: optimalRoutes, sub: "AI-Analyzed paths", icon: Navigation, color: "text-indigo-500", bg: "bg-indigo-50" }
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+          >
+            <Card className="group glass hover:shadow-2xl transition-all duration-500 border-0 rounded-[2.5rem] p-4">
+              <CardHeader className="pb-2">
+                 <div className="flex justify-between items-center mb-2">
+                    <div className={`p-4 ${item.bg} rounded-3xl transition-transform group-hover:scale-110 duration-500`}>
+                      <item.icon className={`h-6 w-6 ${item.color}`} />
+                    </div>
+                 </div>
+                 <CardTitle className="text-sm font-black uppercase tracking-widest text-gray-400">{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <div className="text-4xl font-black text-gray-900 tracking-tighter mb-1">{item.value}</div>
+                 <p className="text-xs font-bold text-gray-500 tracking-tight">{item.sub}</p>
+                 {item.title === "Budget Used" && <Progress value={budgetPercentage} className="h-1.5 mt-4 bg-gray-100" />}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Next Event */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Next Event
-            </CardTitle>
-            <CardDescription>Upcoming in your schedule</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {upcomingEvent ? (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-lg">{upcomingEvent.title}</h3>
-                    <Badge variant={upcomingEvent.priority === 'high' ? 'destructive' : 'secondary'}>
-                      {upcomingEvent.priority}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      <span>
-                        {format(parseISO(upcomingEvent.startTime), 'h:mm a')} - 
-                        {format(parseISO(upcomingEvent.endTime), 'h:mm a')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{upcomingEvent.location}</span>
-                    </div>
-                  </div>
-                </div>
-                <Link to="/travel">
-                  <Button className="w-full">
-                    <Navigation className="h-4 w-4 mr-2" />
-                    Plan Route
-                  </Button>
-                </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        
+        {/* ─── Smart AI Recommendations ─── */}
+        <section className="space-y-6">
+           <div className="flex items-center justify-between px-2">
+              <h2 className="text-2xl font-black tracking-tight text-gray-900 flex items-center gap-2">
+                <Sparkles className="h-6 w-6 text-indigo-500" />
+                AI Strategy Center
+              </h2>
+           </div>
+           <SmartRecommendations insights={combinedInsights} />
+        </section>
+
+        {/* ─── Financial Snapshot ─── */}
+        <section className="space-y-6">
+           <div className="flex items-center justify-between px-2">
+              <h2 className="text-2xl font-black tracking-tight text-gray-900 flex items-center gap-2">
+                <IndianRupee className="h-6 w-6 text-emerald-500 underline decoration-emerald-100" />
+                Financial Pulse
+              </h2>
+           </div>
+           <Card className="glass border-0 rounded-[3rem] p-10 overflow-hidden relative">
+              <div className="flex items-center justify-between mb-10">
+                 <div>
+                    <h3 className="text-5xl font-black text-gray-900 tracking-tighter mb-1">{formatINR(totalExpenses)}</h3>
+                    <p className="text-sm text-emerald-600 font-black tracking-widest uppercase">Total Spent This Month</p>
+                 </div>
+                 <div className="p-6 bg-emerald-50 rounded-full border border-emerald-100/50">
+                    <TrendingDown className="h-10 w-10 text-emerald-500" />
+                 </div>
               </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">No upcoming events today</p>
-            )}
-          </CardContent>
-        </Card>
+              
+              <div className="space-y-6 mb-10">
+                 {expenses.slice(-3).reverse().map((exp, i) => (
+                    <div key={exp.id} className="flex items-center justify-between group">
+                       <div className="flex items-center gap-6">
+                          <div className="h-14 w-14 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-gray-400 group-hover:bg-white shadow-sm transition-all">
+                             {exp.description[0]}
+                          </div>
+                          <div>
+                             <p className="font-black text-gray-900 group-hover:text-indigo-600 transition-colors uppercase text-sm tracking-tight">{exp.description}</p>
+                             <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{format(parseISO(exp.date), 'MMM d')}</p>
+                          </div>
+                       </div>
+                       <span className="font-black text-gray-900">{formatINR(exp.amount)}</span>
+                    </div>
+                 ))}
+              </div>
 
-        {/* AI Recommendations */}
-        <SmartRecommendations insights={combinedInsights} />
-
-        {/* Recent Expenses */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IndianRupee className="h-5 w-5" />
-              Recent Expenses
-            </CardTitle>
-            <CardDescription>Last transactions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {expenses.slice(-4).reverse().map((expense) => (
-                <div key={expense.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div className="flex-1">
-                    <p className="font-medium">{expense.description}</p>
-                    <p className="text-xs text-gray-500 capitalize">{expense.category}</p>
-                  </div>
-                  <span className="font-semibold">{formatINR(expense.amount)}</span>
-                </div>
-              ))}
-              <Link to="/expenses">
-                <Button variant="outline" className="w-full">
-                  Manage Expenses
-                </Button>
+              <Link to="/expenses" className="block mt-4">
+                 <Button className="w-full bg-indigo-600 hover:bg-black rounded-3xl h-16 font-black text-base shadow-2xl shadow-indigo-100 transition-all active:scale-95">
+                   Full Expense Ledger
+                   <ChevronRight className="h-5 w-5 ml-2" />
+                 </Button>
               </Link>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Performance Insights
-            </CardTitle>
-            <CardDescription>Your optimization stats</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const conflictFreeEvents = events.filter(e => !e.hasConflict).length;
-              const scheduleEfficiency = events.length > 0
-                ? Math.round((conflictFreeEvents / events.length) * 100)
-                : 100;
-              const totalRoutes = routes.length;
-              const optimalRouteRatio = totalRoutes > 0
-                ? Math.round((optimalRoutes / totalRoutes) * 100)
-                : 0;
-              const budgetRemaining = Math.max(0, budget - totalExpenses);
-              const budgetUsedPct = Math.min(100, Math.round((totalExpenses / budget) * 100));
-              return (
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Schedule Efficiency</span>
-                      <span className="text-sm font-semibold">{scheduleEfficiency}%</span>
-                    </div>
-                    <Progress value={scheduleEfficiency} />
-                    <p className="text-xs text-gray-400 mt-1">
-                      {conflictFreeEvents} of {events.length} events conflict-free
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Optimal Routes</span>
-                      <span className="text-sm font-semibold">{optimalRouteRatio}%</span>
-                    </div>
-                    <Progress value={optimalRouteRatio} />
-                    <p className="text-xs text-gray-400 mt-1">
-                      {optimalRoutes} of {totalRoutes} routes optimal
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Budget Used</span>
-                      <span className="text-sm font-semibold">{formatINR(budgetRemaining)} remaining</span>
-                    </div>
-                    <Progress value={budgetUsedPct} />
-                    <p className="text-xs text-gray-400 mt-1">
-                      {formatINR(totalExpenses)} spent of {formatINR(budget)} budget
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
+           </Card>
+        </section>
 
       </div>
     </div>

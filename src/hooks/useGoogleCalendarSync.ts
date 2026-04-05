@@ -20,7 +20,7 @@ import {
   syncEventsToSupabase,
   transformGoogleEvent,
 } from '../services/calendar/googleCalendar.service';
-import { geocodeAndCalculateRoute } from '../services/maps/ors.service';
+import { geocodeAndCalculateRoute } from '../services/maps/smart-maps.service';
 import * as routesApi from '../services/api/routes.api';
 import type { TravelRoute, Event } from '../types';
 import { EVENTS_KEY } from './useEvents';

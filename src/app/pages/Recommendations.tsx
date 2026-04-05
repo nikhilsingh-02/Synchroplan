@@ -1,15 +1,13 @@
 import React, { useState } from "react";
 import { useAIInsights } from "../../hooks/useAIInsights";
-import { useNearbyPlaces } from "../../hooks/useNearbyPlaces";
+import { useNearbyPlaces, type Recommendation } from "../../hooks/useNearbyPlaces";
 import { PlaceDetailsModal } from "../../components/places/PlaceDetailsModal";
-import type { NearbyPlace } from "../../services/places/overpass.service";
 
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "../components/ui/card";
 
 import { Input } from "../components/ui/input";
@@ -30,443 +28,244 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
+  ExternalLink,
+  ChevronRight,
+  Hospital,
+  ShoppingCart,
+  Activity,
+  HeartPulse,
+  Monitor,
+  Search,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 
 export const Recommendations: React.FC = () => {
   const { insights: aiInsights, isLoading: isLoadingInsights } = useAIInsights();
-  const { places, rawPlaces, isLoading, error, refetch } = useNearbyPlaces();
+  const { 
+    places, 
+    isLoading, 
+    isLocating, 
+    error, 
+    refetch, 
+    targetLocationName, 
+    searchRadiusKm 
+  } = useNearbyPlaces();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedPlace, setSelectedPlace] = useState<NearbyPlace | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
 
-  // Build a quick id→NearbyPlace map for O(1) Details lookup
-  const rawPlaceById = new Map(rawPlaces.map(p => [p.id, p]));
-
-  // Only apply filters once we actually have data — prevents "no results" during load
-  const filteredRecommendations = isLoading || places.length === 0
-    ? places
+  const filteredRecommendations = isLoading 
+    ? [] 
     : places.filter((rec) => {
-        const matchesSearch =
-          rec.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          rec.location.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesType = selectedType === "all" || rec.type === selectedType;
-        return matchesSearch && matchesType;
-      });
-
-  /* ------------------------------------------------
-     Icon selection
-  ------------------------------------------------ */
+      const matchesSearch = rec.name.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (selectedType === "local") {
+        return (rec.isLocalFavorite || rec.relevanceScore > 1.2) && matchesSearch;
+      }
+      
+      const matchesType = selectedType === "all" || rec.type.toLowerCase().includes(selectedType.toLowerCase());
+      return matchesSearch && matchesType;
+    });
 
   const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "restaurant":
-        return <Utensils className="h-4 w-4" />;
-      case "hotel":
-        return <Hotel className="h-4 w-4" />;
-      case "service":
-        return <Wrench className="h-4 w-4" />;
-      default:
-        return <Lightbulb className="h-4 w-4" />;
-    }
-  };
-
-  const getRelevanceColor = (score: number) => {
-    if (score >= 0.9) return "text-green-600";
-    if (score >= 0.7) return "text-blue-600";
-    return "text-gray-600";
-  };
-
-  const getSeverityColor = (severity: string) => {
-    if (severity === "high") return "bg-red-600 border-red-200";
-    if (severity === "medium") return "bg-yellow-500 border-yellow-200";
-    return "bg-blue-600 border-blue-200";
-  };
-
-  const getSeverityBgColor = (severity: string) => {
-    if (severity === "high") return "bg-red-50 border-red-200";
-    if (severity === "medium") return "bg-yellow-50 border-yellow-200";
-    return "bg-blue-50 border-blue-200";
-  };
-
-  const getSeverityTextColor = (severity: string) => {
-    if (severity === "high") return "text-red-900";
-    if (severity === "medium") return "text-yellow-900";
-    return "text-blue-900";
-  };
-
-  const getSeveritySubTextColor = (severity: string) => {
-    if (severity === "high") return "text-red-700";
-    if (severity === "medium") return "text-yellow-700";
-    return "text-blue-700";
+    const t = type.toLowerCase();
+    if (t.includes("canteen") || t.includes("food_court")) return <Utensils className="h-4 w-4 text-orange-500" />;
+    if (t.includes("restaurant") || t.includes("food") || t.includes("cafe")) return <Utensils className="h-4 w-4 text-indigo-500" />;
+    if (t.includes("hotel") || t.includes("lodging"))    return <Hotel className="h-4 w-4 text-blue-500" />;
+    if (t.includes("university") || t.includes("college") || t.includes("school")) return <Monitor className="h-4 w-4 text-purple-500" />;
+    if (t.includes("hospital") || t.includes("pharmacy")) return <HeartPulse className="h-4 w-4 text-red-400" />;
+    return <MapPin className="h-4 w-4 text-gray-400" />;
   };
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-8 animate-in fade-in duration-700">
 
-      {/* Page header */}
-
-      <div>
-        <h1 className="text-3xl font-bold">
-          Smart Recommendations
-        </h1>
-
-        <p className="text-gray-600">
-          AI‑powered suggestions based on your schedule,
-          travel routes and spending
-        </p>
-      </div>
-
-      {/* Search + Filters */}
-
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-
-            <Input
-              placeholder="Search recommendations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-
-            <Tabs
-              value={selectedType}
-              onValueChange={setSelectedType}
-              className="w-full md:w-auto"
-            >
-              <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="restaurant">Food</TabsTrigger>
-                <TabsTrigger value="hotel">Hotels</TabsTrigger>
-                <TabsTrigger value="service">Services</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-gray-900">
+              Smart Recommendations
+            </h1>
+            <p className="text-lg text-gray-400 mt-2 font-bold tracking-tight">
+              Prioritizing Local Vibe: Food, Social, & Campus Hubs.
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Insights */}
-
-      <div>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          AI‑Powered Insights
-        </h2>
-
-        {isLoadingInsights ? (
-          <Card>
-            <CardContent className="py-8 text-center text-gray-500">
-              Generating AI insights...
-            </CardContent>
-          </Card>
-        ) : aiInsights.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-gray-500">
-              No AI insights yet. Add schedules, routes, or expenses.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-            {aiInsights.map((insight, idx) => (
-              <Card key={insight.id || idx} className={`border ${getSeverityBgColor(insight.severity)}`}>
-
-                <CardContent className="pt-6">
-
-                  <div className="flex items-start gap-3">
-
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${getSeverityColor(insight.severity)} shadow-sm`}>
-                      <Lightbulb className="h-5 w-5 text-white" />
-                    </div>
-
-                    <div>
-
-                      <h3 className={`font-semibold ${getSeverityTextColor(insight.severity)} leading-tight mb-1`}>
-                        {insight.title}
-                      </h3>
-
-                      <p className={`text-sm ${getSeveritySubTextColor(insight.severity)} mb-3`}>
-                        {insight.description}
-                      </p>
-
-                      <Badge className={`${getSeverityColor(insight.severity)} text-white`}>
-                        {insight.impact}
-                      </Badge>
-                      
-                      <div className="mt-4 pt-3 border-t border-black/10">
-                        <p className={`text-xs font-medium ${getSeverityTextColor(insight.severity)}`}>
-                          <span className="opacity-75">Recommendation:</span><br/>
-                          {insight.recommendedAction}
-                        </p>
-
-                        {insight.optimizationDetails && (
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-xs bg-white/60 p-3 rounded-md border border-black/5">
-                            <div>
-                              <p className="font-semibold text-gray-700 mb-1">
-                                Current ({Math.round(insight.optimizationDetails.originalTravelTime)}m travel)
-                              </p>
-                              <ol className="list-decimal pl-4 space-y-1 text-gray-600">
-                                {insight.optimizationDetails.originalOrder?.map((ev, i) => (
-                                  <li key={`orig-${ev.id}-${i}`} className="truncate" title={ev.title}>{ev.title}</li>
-                                ))}
-                              </ol>
-                            </div>
-                            <div>
-                              <p className="font-semibold text-green-700 mb-1">
-                                Optimized ({Math.round(insight.optimizationDetails.optimizedTravelTime)}m travel)
-                              </p>
-                              <ol className="list-decimal pl-4 space-y-1 text-green-700">
-                                {insight.optimizationDetails.optimizedOrder.map((ev, i) => (
-                                  <li key={`opt-${ev.id}-${i}`} className="truncate" title={ev.title}>{ev.title}</li>
-                                ))}
-                              </ol>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                </CardContent>
-
-              </Card>
-            ))}
-
-          </div>
-        )}
-      </div>
-
-      {/* Location Recommendations */}
-
-      <div>
-
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">
-            Nearby Places
-            {status === 'success' && (
-              <span className="text-sm font-normal text-gray-500 ml-2">
-                ({filteredRecommendations.length} within 2 km)
-              </span>
-            )}
-          </h2>
           <Button
             variant="outline"
-            size="sm"
-            onClick={refetch}
-            disabled={isLoading}
-            className="flex items-center gap-2"
+            size="lg"
+            onClick={() => refetch()}
+            disabled={isLoading || isLocating}
+            className="rounded-2xl shadow-sm border-gray-100 h-12 px-8 font-black hover:bg-gray-50 active:scale-95 transition-all"
           >
-            {isLoading
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <RefreshCw className="h-4 w-4" />}
-            Refresh
+            {isLoading || isLocating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh Area
           </Button>
         </div>
 
-        {/* Error state */}
-        {status === 'error' && error && (
-          <Card className="mb-4 border-red-200 bg-red-50">
-            <CardContent className="py-4 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-              <div>
-                <p className="font-medium text-red-800 text-sm">{error}</p>
-                <button onClick={refetch} className="text-xs text-red-600 underline mt-1">Try again</button>
+        {/* AI Insight (Focused on Local Area) */}
+        {aiInsights.length > 0 && (
+           <section className="bg-gradient-to-br from-indigo-700 to-indigo-900 rounded-[3rem] p-10 text-white shadow-3xl shadow-indigo-200 overflow-hidden relative group">
+              <Zap className="absolute -top-10 -right-10 h-40 w-40 text-white/5 rotate-12 transition-transform group-hover:scale-110" />
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-white/20 backdrop-blur-xl rounded-2xl">
+                  <Sparkles className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black">Local Insights</h2>
+                  <p className="text-indigo-200 font-bold text-sm tracking-widest uppercase">AI-Powered Predictions</p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Loading skeleton */}
-        {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 bg-gray-200 rounded-full" />
-                    <div className="space-y-1 flex-1">
-                      <div className="h-3 bg-gray-200 rounded w-3/4" />
-                      <div className="h-2 bg-gray-100 rounded w-1/4" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {aiInsights.slice(0, 2).map((insight) => (
+                  <div key={insight.id} className="bg-white/10 backdrop-blur-3xl rounded-[2rem] p-8 border border-white/10 hover:bg-white/20 transition-all group/card">
+                    <h3 className="text-xl font-black mb-3">{insight.title}</h3>
+                    <p className="text-base text-indigo-100/80 font-medium mb-6 line-clamp-2 leading-relaxed">{insight.description}</p>
+                    <div className="flex items-center justify-between">
+                       <Badge className="bg-white text-indigo-900 font-black px-6 py-2 rounded-2xl shadow-xl shadow-indigo-950/20">{insight.recommendedAction}</Badge>
+                       <ChevronRight className="h-6 w-6 text-white/40 group-hover/card:translate-x-1 transition-transform" />
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="h-2 bg-gray-100 rounded w-full" />
-                  <div className="h-2 bg-gray-100 rounded w-2/3" />
-                  <div className="h-8 bg-gray-100 rounded-lg mt-4" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                ))}
+              </div>
+           </section>
         )}
 
-        {!isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-          {filteredRecommendations.map((rec) => (
-
-            <Card key={rec.id} className="hover:shadow-lg transition-shadow">
-
-              <CardHeader className="pb-3">
-
-                <div className="flex items-center gap-2">
-
-                  <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center">
-                    {getTypeIcon(rec.type)}
+        {/* Discovery Feed */}
+        <section>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="h-12 w-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                   <MapPin className="h-6 w-6 fill-indigo-600/20" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-gray-900 tracking-tight leading-none mb-1">
+                    {targetLocationName}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black px-3 py-1 text-[10px] uppercase tracking-widest rounded-lg">Real-Life Active</Badge>
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-[0.15em]">• Optimized for Proximity</span>
                   </div>
+                </div>
+              </div>
+            </div>
 
-                  <div>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <Tabs value={selectedType} onValueChange={setSelectedType} className="shrink-0">
+                <TabsList className="bg-gray-100 p-1.5 rounded-2xl h-14">
+                  <TabsTrigger value="local" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:text-indigo-600 shadow-none">Local Vibe</TabsTrigger>
+                  <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white shadow-none">All Area</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative group flex-1 md:w-80">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300 group-focus-within:text-indigo-500 transition-colors" />
+                <Input
+                  className="pl-13 bg-white border-gray-100 rounded-[1.25rem] h-14 shadow-sm focus:ring-0 focus:border-indigo-400 transition-all font-bold text-gray-800"
+                  placeholder="Find local spots..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
 
-                    <CardTitle className="text-base">
+          {/* Result States */}
+          {error && (
+            <div className="py-24 text-center bg-red-50/50 rounded-[4rem] border border-red-100/50">
+               <AlertCircle className="h-20 w-20 mx-auto mb-8 text-red-400 animate-bounce" />
+               <h3 className="text-3xl font-black text-red-900">Vibe Check Failed</h3>
+               <p className="text-red-700/60 mt-2 font-bold text-lg">{error}</p>
+               <Button onClick={() => refetch()} className="mt-10 bg-red-600 hover:bg-black rounded-3xl px-12 h-16 font-black text-white shadow-2xl shadow-red-200 transition-all active:scale-95">Try Discovery Again</Button>
+            </div>
+          )}
+
+          {(isLoading || isLocating) ? (
+            <div className="py-40 flex flex-col items-center">
+              <div className="relative">
+                 <Loader2 className="h-20 w-20 text-indigo-600 animate-spin" />
+                 <MapPin className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-indigo-600/30 animate-pulse" />
+              </div>
+              <p className="mt-8 text-2xl font-black text-gray-900 tracking-tight">Prioritizing the Vibe...</p>
+              <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-xs">Matching Google Data & OSM Essentials</p>
+            </div>
+          ) : !error && filteredRecommendations.length === 0 ? (
+            <div className="py-32 text-center bg-gray-50/50 rounded-[4rem] border border-dashed border-gray-200 group">
+               <Search className="h-20 w-20 mx-auto mb-8 text-gray-100 group-hover:scale-110 group-hover:text-amber-200 transition-all duration-500" />
+               <h3 className="text-3xl font-black text-gray-300">No local Area spots found</h3>
+               <p className="text-gray-400 font-bold text-lg">Try switching to "All Area" to see more general results.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+              {filteredRecommendations.map((rec) => (
+                <Card key={rec.id} className={`group relative overflow-hidden transition-all duration-500 rounded-[3rem] border-2 bg-white ${rec.isLocalFavorite ? "border-indigo-100 shadow-2xl shadow-indigo-100/50 scale-[1.02]" : "border-gray-50 hover:border-indigo-100 shadow-sm hover:shadow-xl"}`}>
+                  {rec.isLocalFavorite && (
+                    <div className="absolute top-8 right-8 z-10">
+                       <Badge className="bg-indigo-600 text-white font-black px-4 py-1.5 rounded-full shadow-lg border-0 animate-in zoom-in duration-500">
+                         <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                         Local Favorite
+                       </Badge>
+                    </div>
+                  )}
+                  
+                  <CardHeader className="p-12 pb-6">
+                    <div className="flex items-center gap-3 mb-4">
+                       <Badge variant="outline" className={`text-[10px] font-black tracking-widest border-2 uppercase px-3 py-1 rounded-xl ${rec.source === 'google' ? 'text-blue-600 border-blue-50 bg-blue-50/30' : 'text-orange-600 border-orange-50 bg-orange-50/30'}`}>
+                         {rec.source}
+                       </Badge>
+                       <span className="text-[10px] font-black tracking-widest text-gray-300 uppercase">{rec.distance.toFixed(1)} km away</span>
+                    </div>
+                    <CardTitle className="text-3xl font-black text-gray-900 group-hover:text-indigo-600 transition-all leading-tight line-clamp-2 tracking-tight">
                       {rec.name}
                     </CardTitle>
-
-                    <Badge
-                      variant="outline"
-                      className="mt-1 capitalize text-xs"
-                    >
-                      {rec.type}
-                    </Badge>
-
-                  </div>
-
-                </div>
-
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="h-4 w-4" />
-                  {rec.location}
-                </div>
-
-                <div className="flex items-center justify-between">
-
-                  <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    {rec.rating}
-                  </div>
-
-                  <span className="text-sm text-gray-600">
-                    {rec.distance} km away
-                  </span>
-
-                </div>
-
-                <div className="flex items-center justify-between">
-
-                  {rec.priceRange ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>{rec.priceRange}</span>
+                  </CardHeader>
+                  <CardContent className="p-12 pt-0 space-y-10">
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 text-base text-gray-500 font-bold bg-gray-50/50 p-4 rounded-2xl border border-gray-50">
+                          {getTypeIcon(rec.type)}
+                          <span className="truncate">{rec.location}</span>
+                        </div>
+                        <div className="flex items-center gap-6 px-1">
+                          <div className="flex items-center gap-2">
+                             <div className="flex gap-0.5">
+                               {Array.from({length: 5}).map((_, i) => (
+                                 <Star key={i} className={`h-4 w-4 ${i < Math.floor(rec.rating) ? "text-amber-400 fill-amber-400" : "text-gray-100 fill-gray-100"}`} />
+                               ))}
+                             </div>
+                             <span className="text-base font-black text-gray-900">{rec.rating.toFixed(1)}</span>
+                          </div>
+                          {rec.user_ratings_total && (
+                             <span className="text-sm text-gray-400 font-bold">({rec.user_ratings_total} Reviews)</span>
+                          )}
+                        </div>
                     </div>
-                  ) : (
-                    <span className="text-xs text-gray-400">Price unavailable</span>
-                  )}
 
-                  <span
-                    className={`font-semibold ${getRelevanceColor(
-                      rec.relevanceScore
-                    )}`}
-                  >
-                    {(rec.relevanceScore * 100).toFixed(0)}% match
-                  </span>
-
-                </div>
-
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                    style={{
-                      width: `${rec.relevanceScore * 100}%`,
-                    }}
-                  />
-
-                </div>
-
-                <div className="flex gap-2 pt-2">
-
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      const raw = rawPlaceById.get(rec.id);
-                      if (raw) {
-                        window.open(
-                          `https://www.google.com/maps/dir/?api=1&destination=${raw.latitude},${raw.longitude}`,
-                          '_blank', 'noopener,noreferrer'
-                        );
-                      }
-                    }}
-                  >
-                    <Navigation className="h-3 w-3 mr-1" />
-                    Navigate
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const raw = rawPlaceById.get(rec.id);
-                      if (raw) setSelectedPlace(raw);
-                    }}
-                  >
-                    Details
-                  </Button>
-
-                </div>
-
-              </CardContent>
-            </Card>
-          ))}
-
-        </div>
-        )}
-
-        {!isLoading && places.length === 0 && !error && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <MapPin className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-              <p className="text-gray-600 font-medium mb-1">
-                No nearby places found within 5 km
-              </p>
-              <p className="text-gray-400 text-sm mb-4">
-                This can happen if OpenStreetMap has limited data for your area,
-                or if location access was recently granted. Try refreshing.
-              </p>
-              <Button variant="outline" onClick={refetch} className="flex items-center gap-2 mx-auto">
-                <RefreshCw className="h-4 w-4" />
-                Retry Search
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && places.length > 0 && filteredRecommendations.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Filter className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-              <p className="text-gray-500">
-                No places match your search filters.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
+                    <div className="flex gap-4 pt-4">
+                      <Button
+                        className="flex-1 h-18 rounded-[1.5rem] bg-indigo-600 text-white font-black shadow-2xl shadow-indigo-200 hover:bg-black transition-all active:scale-95 text-lg"
+                        onClick={() => {
+                          const query = encodeURIComponent(`${rec.name} ${rec.location}`);
+                          window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+                        }}
+                      >
+                        <Navigation className="h-6 w-6 mr-3 text-white/50" />
+                        Go There
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-
-    </div>
-
-    {/* Place Details Modal — rendered outside the scroll container */}
-    <PlaceDetailsModal
-      place={selectedPlace}
-      onClose={() => setSelectedPlace(null)}
-    />
+      
+      <PlaceDetailsModal
+        place={selectedPlace}
+        onClose={() => setSelectedPlace(null)}
+      />
     </>
   );
 };

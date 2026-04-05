@@ -1,34 +1,41 @@
 /**
- * RouteMap — Interactive Leaflet map displaying event markers and route paths.
- * Replaces the previous Mapbox implementation while keeping the identical
- * React prop signature so TravelPlanner requires no structural component changes.
+ * RouteMap — Interactive Leaflet map displaying event markers and a
+ * traffic-coloured route path.
+ *
+ * The route is drawn as multiple coloured Polyline segments based on live
+ * congestion data returned by useTrafficPoller
  */
 
 import 'leaflet/dist/leaflet.css';
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin } from 'lucide-react';
 
-const ORS_KEY = import.meta.env.VITE_ORS_API_KEY as string;
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+export interface TrafficSegment {
+  coordinates: [number, number][];
+  congestionRatio: number;
+}
 
 export interface MapMarker {
   longitude: number;
-  latitude: number;
-  label: string;
-  color?: string;
+  latitude:  number;
+  label:     string;
+  color?:    string;
 }
 
 export interface RouteMapProps {
-  routeGeometry?: GeoJSON.LineString | null;
-  markers?: MapMarker[];
-  congestion?: string[]; // Kept for prop compatibility
-  className?: string;
+  routeGeometry?:   GeoJSON.LineString | null;
+  markers?:         MapMarker[];
+  trafficSegments?: TrafficSegment[];
+  congestion?:      string[];
+  className?:       string;
 }
 
-// ─── Custom Icons ─────────────────────────────────────────────────────────────
+function segmentColor(ratio: number): string {
+  if (ratio > 1.5) return '#ef4444'; // red   — heavy
+  if (ratio > 1.2) return '#f59e0b'; // amber — moderate
+  return '#22c55e';                   // green — clear
+}
 
 const createCustomIcon = (color: string, label: string) => {
   const html = `
@@ -52,81 +59,66 @@ const createCustomIcon = (color: string, label: string) => {
 
   return new L.DivIcon({
     html,
-    className: 'custom-leaflet-marker',
-    iconSize: [80, 40],
-    iconAnchor: [40, 40], // Anchor at bottom center
+    className:  'custom-leaflet-marker',
+    iconSize:   [80, 40],
+    iconAnchor: [40, 40],
   });
 };
 
-// ─── Bounds Updater ───────────────────────────────────────────────────────────
-
-function BoundsUpdater({ markers, geometry }: { markers: MapMarker[], geometry?: GeoJSON.LineString | null }) {
+function BoundsUpdater({
+  markers,
+  geometry,
+}: {
+  markers:   MapMarker[];
+  geometry?: GeoJSON.LineString | null;
+}) {
   const map = useMap();
 
   useEffect(() => {
     if (!map) return;
-    
+
     const latLngs: L.LatLng[] = [];
 
-    // Add marker bounds
-    if (markers && markers.length > 0) {
-      markers.forEach(m => latLngs.push(L.latLng(m.latitude, m.longitude)));
-    }
+    markers.forEach(m => latLngs.push(L.latLng(m.latitude, m.longitude)));
 
-    // Add geometry bounds
-    if (geometry && geometry.coordinates && geometry.coordinates.length > 0) {
-      geometry.coordinates.forEach(coord => {
-        latLngs.push(L.latLng(coord[1], coord[0])); // GeoJSON is [lng, lat]
-      });
+    if (geometry?.coordinates?.length) {
+      geometry.coordinates.forEach(c =>
+        latLngs.push(L.latLng(c[1], c[0]))
+      );
     }
 
     if (latLngs.length > 0) {
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+      map.fitBounds(L.latLngBounds(latLngs), { padding: [50, 50], maxZoom: 16 });
     }
   }, [map, markers, geometry]);
 
   return null;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function RouteMap({
   routeGeometry,
-  markers = [],
-  className = '',
+  markers         = [],
+  trafficSegments = [],
+  className       = '',
 }: RouteMapProps) {
+  const defaultCenter: [number, number] =
+    markers[0] ? [markers[0].latitude, markers[0].longitude] : [20.5937, 78.9629];
 
-  if (!ORS_KEY) {
-    return (
-      <div className={`flex items-center justify-center bg-gray-100 rounded-xl border border-dashed border-gray-300 text-gray-500 text-sm ${className}`}>
-        <div className="text-center p-6">
-          <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-          <p className="font-medium">Map unavailable</p>
-          <p className="text-xs mt-1">Set VITE_ORS_API_KEY in your .env file</p>
-        </div>
-      </div>
+  const fallbackPositions: [number, number][] = useMemo(() => {
+    if (trafficSegments.length > 0) return [];
+    if (!routeGeometry?.coordinates?.length) return [];
+    return (routeGeometry.coordinates as [number, number][]).map(
+      c => [c[1], c[0]] as [number, number]
     );
-  }
-
-  // Default to NYC if no markers
-  const defaultCenter: [number, number] = markers && markers[0]
-    ? [markers[0].latitude, markers[0].longitude]
-    : [40.7128, -74.0060];
-
-  // Map GeoJSON [lng, lat] to Leaflet [lat, lng]
-  const polylinePositions: [number, number][] = useMemo(() => {
-    if (!routeGeometry || !routeGeometry.coordinates || routeGeometry.coordinates.length === 0) {
-      return [];
-    }
-    return (routeGeometry.coordinates as [number, number][]).map(coord => [coord[1], coord[0]] as [number, number]);
-  }, [routeGeometry]);
+  }, [routeGeometry, trafficSegments]);
 
   return (
-    <div className={`rounded-xl overflow-hidden border border-gray-200 shadow-sm relative z-0 ${className}`}>
+    <div
+      className={`rounded-xl overflow-hidden border border-gray-200 shadow-sm relative z-0 ${className}`}
+    >
       <MapContainer
         center={defaultCenter}
-        zoom={13}
+        zoom={12}
         style={{ width: '100%', height: '100%', minHeight: '300px' }}
         zoomControl={false}
       >
@@ -137,19 +129,33 @@ export function RouteMap({
 
         <BoundsUpdater markers={markers} geometry={routeGeometry} />
 
-        {/* Use ternary instead of && to prevent React from trying to render false inside Leaflet context */}
-        {polylinePositions.length > 0 ? (
-          <Polyline
-            positions={polylinePositions}
-            color="#3b82f6"
-            weight={5}
-            opacity={0.8}
-            lineCap="round"
-            lineJoin="round"
-          />
-        ) : null}
+        {trafficSegments.length > 0
+          ? trafficSegments.map((seg, i) => (
+              <Polyline
+                key={`seg-${i}`}
+                positions={seg.coordinates}
+                color={segmentColor(seg.congestionRatio)}
+                weight={6}
+                opacity={0.85}
+                lineCap="round"
+                lineJoin="round"
+              />
+            ))
+          : fallbackPositions.length > 0
+            ? (
+                <Polyline
+                  positions={fallbackPositions}
+                  color="#3b82f6"
+                  weight={5}
+                  opacity={0.8}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              )
+            : null
+        }
 
-        {markers && markers.map((m, i) => (
+        {markers.map((m, i) => (
           <Marker
             key={`marker-${i}-${m.latitude}-${m.longitude}`}
             position={[m.latitude, m.longitude]}

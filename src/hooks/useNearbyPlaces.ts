@@ -1,130 +1,158 @@
-/**
- * useNearbyPlaces
- *
- * Two-phase TanStack Query hook:
- *  1. Fetches the user's GPS location via the userLocation service
- *  2. Queries the Overpass OSM API for nearby places (restaurants, cafes, hotels, services)
- *
- * Results are cached with a 10-minute stale time and auto-refresh.
- * Query key: ['nearbyPlaces', lat, lng]
- */
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { fetchNearbyPlaces as fetchOverpass, type NearbyPlace as OverpassPlace } from "../services/places/overpass.service";
+import { fetchNearbyPOIs as fetchGoogle, reverseGeocodeAddress, type GooglePlace } from "../services/maps/google-maps.service";
 
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getUserLocation, type UserCoordinates } from '../services/location/userLocation';
-import { fetchNearbyPlaces, type NearbyPlace } from '../services/places/overpass.service';
-import type { Recommendation } from '../types';
-
-// ─── Coordinate → Recommendation adapter ─────────────────────────────────────
-// Bridges the NearbyPlace shape into the existing Recommendation interface
-// so the Recommendations.tsx UI requires zero structural changes.
-
-function toRecommendation(place: NearbyPlace): Recommendation {
-  const typeMap: Record<NearbyPlace['category'], Recommendation['type']> = {
-    restaurant: 'restaurant',
-    cafe:       'restaurant',  // collapse into restaurant tab
-    hotel:      'hotel',
-    coworking:  'service',
-    service:    'service',
-  };
-
-  // Relevance: closer = higher, caps at 1.0 within 200 m
-  const relevanceScore = Math.min(1, Math.max(0.1, 1 - place.distance / 2));
-
-  // Deterministic synthetic rating based on OSM id characters (3.0 – 4.4)
-  const idSum = place.id.split('').reduce((n, c) => n + c.charCodeAt(0), 0);
-  const rating = Math.round((3 + (idSum % 15) / 10) * 10) / 10;
-
-  return {
-    id:             place.id,
-    type:           typeMap[place.category] ?? 'service',
-    name:           place.name,
-    location:       place.address ?? 'Nearby',
-    rating,
-    priceRange:     '',   // OSM does not provide pricing
-    distance:       place.distance,
-    relevanceScore: Math.round(relevanceScore * 100) / 100,
-  };
+export interface Recommendation {
+  id: string;
+  name: string;
+  type: string;
+  location: string;
+  rating: number;
+  user_ratings_total?: number;
+  distance: number;
+  relevanceScore: number;
+  source: 'google' | 'overpass';
+  isLocalFavorite?: boolean;
 }
 
-// ─── Exported types ───────────────────────────────────────────────────────────
+// ─── Scoring Engine ──────────────────────────────────────────────────────────
 
-export interface UseNearbyPlacesReturn {
-  places: Recommendation[];
-  rawPlaces: NearbyPlace[];
-  userLocation: UserCoordinates | null;
-  isLoading: boolean;
-  isLocating: boolean;
-  error: string | null;
-  refetch: () => void;
+const SOCIAL_CATEGORIES = [
+  'canteen', 'food_court', 'restaurant', 'cafe', 'fast_food', 
+  'social_centre', 'university', 'college', 'school', 'park'
+];
+
+const INFRA_CATEGORIES = [
+  'hospital', 'pharmacy', 'bank', 'atm', 'fuel', 'laundry', 'clinic', 'doctors', 'dentist'
+];
+
+function calculateRelevance(p: { type: string; distance: number; rating?: number }): number {
+  let score = p.rating ? (p.rating / 5) : 0.6; // Default to mid-high for unlabeled spots
+
+  const type = p.type.toLowerCase();
+  
+  // 1. Ultra-Proximity Boost (massive multiplier for anything < 500m)
+  if (p.distance < 0.5) score *= 2.5;
+  else if (p.distance < 1.0) score *= 1.5;
+
+  // 2. Category Boosting
+  if (SOCIAL_CATEGORIES.some(cat => type.includes(cat))) {
+    score *= 2.0; // Boost local area vibes
+  }
+
+  // 3. Infrastructure De-boosting (Generic services/medical)
+  if (INFRA_CATEGORIES.some(cat => type.includes(cat))) {
+    score *= 0.4; 
+  }
+
+  return score;
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── Hook ────────────────────────────────────────────────────────────────────
 
-export function useNearbyPlaces(): UseNearbyPlacesReturn {
-  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+export function useNearbyPlaces() {
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [isLocating, setIsLocating] = useState(true);
+  const [formattedAddress, setFormattedAddress] = useState<string | null>(null);
 
-  // Phase 1 – obtain coordinates once on mount
   useEffect(() => {
-    let cancelled = false;
-    setIsLocating(true);
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported.");
+      return;
+    }
 
-    getUserLocation()
-      .then(coords => {
-        if (!cancelled) {
-          setUserLocation(coords);
-          setLocationError(null);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          console.error('[NearbyPlaces] Error getting location:', err.message);
-          setLocationError(err.message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLocating(false);
-      });
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setCoords({ lat: latitude, lng: longitude });
+        setLocationError(null);
 
-    return () => { cancelled = true; };
+        const address = await reverseGeocodeAddress(latitude, longitude);
+        if (address) setFormattedAddress(address);
+      },
+      (err) => {
+        console.error("Location error:", err);
+        setLocationError("Enable location permissions for the best local area results.");
+      },
+      { enableHighAccuracy: true, timeout: 20000 }
+    );
   }, []);
 
-  // Phase 2 – TanStack Query: fetch places once coordinates are known
-  const lat = userLocation?.latitude  ?? 0;
-  const lng = userLocation?.longitude ?? 0;
+  const { 
+    data: places = [], 
+    isLoading, 
+    isRefetching,
+    error: apiError,
+    refetch 
+  } = useQuery({
+    queryKey: ["local-area-nearby-places", coords],
+    queryFn: async () => {
+      if (!coords) return [];
 
-  const query = useQuery<NearbyPlace[], Error>({
-    queryKey:        ['nearbyPlaces', lat, lng],
-    queryFn:         () => {
-      console.log('[NearbyPlaces] Fetching places for:', lat, lng);
-      return fetchNearbyPlaces(lat, lng, 5000, 60);
+      console.log(`[LocalArea] Syncing for: ${coords.lat}, ${coords.lng}`);
+
+      const [googleRes, overpassRes] = await Promise.allSettled([
+        fetchGoogle(coords.lat, coords.lng, 50000), // radius 50km
+        fetchOverpass(coords.lat, coords.lng, 25000) // focus overpass more locally
+      ]);
+
+      const gPlaces = googleRes.status === 'fulfilled' ? googleRes.value : [];
+      const oPlaces = overpassRes.status === 'fulfilled' ? overpassRes.value : [];
+
+      const merged: Recommendation[] = [];
+      const seenNames = new Set<string>();
+
+      // 1. Prioritize Google
+      gPlaces.forEach(p => {
+        const rel = calculateRelevance({ type: p.type, distance: p.distance || 0, rating: p.rating });
+        merged.push({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          location: p.address,
+          rating: p.rating || 0,
+          user_ratings_total: p.user_ratings_total,
+          distance: p.distance || 0,
+          relevanceScore: rel,
+          source: 'google',
+          isLocalFavorite: p.distance !== undefined && p.distance < 0.8 && SOCIAL_CATEGORIES.some(cat => p.type.includes(cat))
+        });
+        seenNames.add(p.name.toLowerCase());
+      });
+
+      // 2. Add Overpass (The true local canteens often hide here)
+      oPlaces.forEach(p => {
+        if (!seenNames.has(p.name.toLowerCase())) {
+          const rel = calculateRelevance({ type: p.category, distance: p.distance });
+          merged.push({
+            id: p.id,
+            name: p.name,
+            type: p.category,
+            location: p.address || 'Nearby',
+            rating: p.category === 'canteen' ? 4.8 : (3.5 + Math.random()), // Campus canteens are high priority
+            distance: p.distance,
+            relevanceScore: rel,
+            source: 'overpass',
+            isLocalFavorite: p.distance < 0.5 || p.category === 'canteen'
+          });
+        }
+      });
+
+      // Sort by relevance (proximty + category boost)
+      return merged.sort((a, b) => b.relevanceScore - a.relevanceScore);
     },
-    enabled:         !isLocating && !!userLocation,
-    staleTime:       10 * 60 * 1000,       // 10 minutes
-    refetchInterval: 10 * 60 * 1000,
-    retry:           2,
-    meta: {
-      onError: (err: Error) => {
-        console.error('[NearbyPlaces] Error fetching places:', err.message);
-      },
-    },
+    enabled: !!coords,
+    staleTime: 5 * 60 * 1000,
   });
-
-  const rawPlaces  = query.data ?? [];
-  const places     = rawPlaces.map(toRecommendation);
-  const isLoading  = isLocating || query.isLoading || query.isFetching;
-  const queryError = query.error ? (query.error as Error).message : null;
-  const error      = locationError ?? queryError;
 
   return {
     places,
-    rawPlaces,
-    userLocation,
-    isLoading,
-    isLocating,
-    error,
-    refetch: () => void query.refetch(),
+    isLoading: (isLoading || isRefetching) && !!coords,
+    isLocating: !coords && !locationError,
+    error: locationError || (apiError ? "Vibe discovery failed." : null),
+    targetLocationName: formattedAddress || "Discovering Local Vibe...",
+    searchRadiusKm: 50,
+    refetch,
   };
 }
