@@ -42,16 +42,17 @@ export const TravelPlanner: React.FC = () => {
   const [mode, setMode] = useState<TravelRoute['mode']>('driving');
   const [isCalculating, setIsCalculating] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [generatedRoutes, setGeneratedRoutes] = useState<TravelRoute[]>([]);
   const [lastUsedModes, setLastUsedModes] = useState<TravelRoute['mode'][]>([]);
 
   const [activeRouteResult, setActiveRouteResult] = useState<RouteResult | null>(null);
   const [activeMarkers, setActiveMarkers] = useState<MapMarker[]>([]);
 
   const {
-    segments:     trafficSegments,
+    segments: trafficSegments,
     trafficLevel: liveTrafficLevel,
     isRefreshing,
-    refresh:      refreshTraffic,
+    refresh: refreshTraffic,
   } = useTrafficPoller(activeRouteResult?.geometry ?? null);
 
   useEffect(() => {
@@ -104,8 +105,10 @@ export const TravelPlanner: React.FC = () => {
         return;
       }
 
+      const newGenerated: TravelRoute[] = [];
+
       successful.forEach(({ route, routeMode }) => {
-        addRoute({
+        const routeData = {
           from: origin,
           to: destination,
           mode: routeMode,
@@ -115,7 +118,10 @@ export const TravelPlanner: React.FC = () => {
           arrivalTime: route.arrivalTime,
           status: route.status,
           trafficLevel: route.trafficLevel,
-        });
+        };
+        addRoute(routeData); // Fire-and-forget to global DB
+        // Save locally to prevent React Query invalidation flickers
+        newGenerated.push({ ...routeData, id: crypto.randomUUID() } as TravelRoute);
       });
 
       const first = successful[0];
@@ -126,6 +132,7 @@ export const TravelPlanner: React.FC = () => {
       ]);
 
       setLastUsedModes(modesWanted);
+      setGeneratedRoutes(newGenerated); // Set local state explicitly
       setShowResults(true);
       toast.success('Multi-modal routes optimized!');
     } catch (err) {
@@ -145,16 +152,16 @@ export const TravelPlanner: React.FC = () => {
     }
   };
 
-  const recentRoutes = showResults ? routes.slice(-lastUsedModes.length).reverse() : [];
+  const recentRoutes = showResults ? [...generatedRoutes].reverse() : [];
 
   return (
     <div className="flex flex-col xl:flex-row gap-12 w-full h-full pb-20 fade-in-up">
-      
+
       {/* ─── Left Column: Form & Insights ─── */}
       <div className="w-full xl:w-[480px] shrink-0 flex flex-col gap-10">
         <div className="space-y-2">
           <h1 className="text-5xl font-heading font-black tracking-tighter text-foreground leading-none">
-            Travel <span className="text-gradient-primary">Intelligence</span>
+            Travel <span className="text-gradient-primary">Planner</span>
           </h1>
           <p className="text-muted-foreground font-semibold tracking-tight ml-1">AI-Optimized Multi-Modal Navigation</p>
         </div>
@@ -197,7 +204,7 @@ export const TravelPlanner: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-6 pt-2">
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Optimization Mode</Label>
@@ -213,8 +220,8 @@ export const TravelPlanner: React.FC = () => {
                 </Select>
               </div>
 
-              <Button 
-                onClick={handleSearch} 
+              <Button
+                onClick={handleSearch}
                 className="w-full bg-primary hover:bg-foreground text-primary-foreground rounded-2xl h-16 font-bold text-lg shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
                 disabled={isCalculating}
               >
@@ -240,33 +247,33 @@ export const TravelPlanner: React.FC = () => {
                       </div>
                     )}
                     <div className="flex items-center gap-6 mb-10">
-                       <div className={`p-5 rounded-2xl shadow-sm ${route.mode === 'driving' ? 'bg-primary/5 text-primary' : 'bg-emerald-50 text-emerald-600'}`}>
-                         {getModeIcon(route.mode)}
-                       </div>
-                       <div>
-                          <h3 className="text-3xl font-heading font-black text-foreground capitalize leading-none mb-2">{route.mode}</h3>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{route.distance} KM • {route.duration} Min</p>
-                       </div>
+                      <div className={`p-5 rounded-2xl shadow-sm ${route.mode === 'driving' ? 'bg-primary/5 text-primary' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {getModeIcon(route.mode)}
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-heading font-black text-foreground capitalize leading-none mb-2">{route.mode}</h3>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{route.distance} KM • {route.duration} Min</p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-5 mb-10">
-                       <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Estimated Cost</p>
-                          <p className="text-xl font-bold text-foreground">₹{route.cost}</p>
-                       </div>
-                       <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Arrival Window</p>
-                          <p className="text-xl font-bold text-foreground">
-                            {format(parseISO(route.arrivalTime), 'h:mm a')}
-                          </p>
-                       </div>
+                      <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Estimated Cost</p>
+                        <p className="text-xl font-bold text-foreground">₹{route.cost}</p>
+                      </div>
+                      <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Arrival Window</p>
+                        <p className="text-xl font-bold text-foreground">
+                          {format(parseISO(route.arrivalTime), 'h:mm a')}
+                        </p>
+                      </div>
                     </div>
 
                     {route.mode === 'driving' && liveTrafficLevel === 'high' && (
-                       <div className="bg-destructive/5 p-5 rounded-2xl border border-destructive/10 flex items-start gap-4 mb-8">
-                          <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-                          <p className="text-xs font-semibold text-destructive/80 leading-relaxed">Expect significant delays! Heavy congestion detected on the primary corridor.</p>
-                       </div>
+                      <div className="bg-destructive/5 p-5 rounded-2xl border border-destructive/10 flex items-start gap-4 mb-8">
+                        <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                        <p className="text-xs font-semibold text-destructive/80 leading-relaxed">Expect significant delays! Heavy congestion detected on the primary corridor.</p>
+                      </div>
                     )}
 
                     <Button
@@ -287,7 +294,7 @@ export const TravelPlanner: React.FC = () => {
 
       {/* ─── Right Column: Interactive Map ─── */}
       <div className="flex-1 sticky top-10 h-[calc(100vh-10rem)] rounded-[3rem] overflow-hidden shadow-3xl border-8 border-white/50 bg-primary/5 relative group transition-all duration-700">
-        
+
         {/* Map UI Overlays */}
         <div className="absolute top-10 left-10 right-10 z-[1000] flex justify-between items-center bg-white/60 backdrop-blur-3xl px-10 py-6 rounded-[2.5rem] shadow-2xl border border-white/20 transition-all hover:bg-white/80">
           <div className="flex items-center gap-6">
@@ -297,53 +304,53 @@ export const TravelPlanner: React.FC = () => {
             <div className="space-y-1">
               <h2 className="text-xl font-heading font-black text-foreground tracking-tight leading-none">Live Analytics Map</h2>
               <div className="flex items-center gap-5">
-                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">
-                    <div className="h-2.5 w-2.5 bg-emerald-500 rounded-full shadow-lg shadow-emerald-200" />
-                    Optimal
-                 </span>
-                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
-                    <div className="h-2.5 w-2.5 bg-amber-500 rounded-full shadow-lg shadow-amber-200" />
-                    Moderate
-                 </span>
-                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-destructive">
-                    <div className="h-2.5 w-2.5 bg-destructive rounded-full shadow-lg shadow-destructive/20 animate-pulse" />
-                    Congested
-                 </span>
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                  <div className="h-2.5 w-2.5 bg-emerald-500 rounded-full shadow-lg shadow-emerald-200" />
+                  Optimal
+                </span>
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+                  <div className="h-2.5 w-2.5 bg-amber-500 rounded-full shadow-lg shadow-amber-200" />
+                  Moderate
+                </span>
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-destructive">
+                  <div className="h-2.5 w-2.5 bg-destructive rounded-full shadow-lg shadow-destructive/20 animate-pulse" />
+                  Congested
+                </span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-             {showResults && (
-                <div className="group/traffic relative">
-                   <Button variant="ghost" onClick={refreshTraffic} disabled={isRefreshing} className="h-14 w-14 rounded-2xl bg-white/50 hover:bg-primary/5 transition-all outline-none border border-white/20 shadow-sm">
-                      {isRefreshing ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <TrendingDown className="h-6 w-6 text-primary" />}
-                   </Button>
-                   <div className="absolute top-full right-0 mt-4 hidden group-hover/traffic:block w-56 glass p-4 rounded-xl shadow-3xl text-[10px] font-bold text-primary uppercase tracking-[0.2em] text-center border-white/20">
-                     Recalculate Traffic Pulse
-                   </div>
+            {showResults && (
+              <div className="group/traffic relative">
+                <Button variant="ghost" onClick={refreshTraffic} disabled={isRefreshing} className="h-14 w-14 rounded-2xl bg-white/50 hover:bg-primary/5 transition-all outline-none border border-white/20 shadow-sm">
+                  {isRefreshing ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <TrendingDown className="h-6 w-6 text-primary" />}
+                </Button>
+                <div className="absolute top-full right-0 mt-4 hidden group-hover/traffic:block w-56 glass p-4 rounded-xl shadow-3xl text-[10px] font-bold text-primary uppercase tracking-[0.2em] text-center border-white/20">
+                  Recalculate Traffic Pulse
                 </div>
-             )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Map Logic Overlay (Empty State) */}
         {!showResults && (
-           <div className="absolute inset-0 z-10 bg-primary/5 flex items-center justify-center pointer-events-none transition-opacity duration-700">
-              <motion.div 
-                animate={{ y: [0, -15, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                className="glass p-16 rounded-[4rem] flex flex-col items-center gap-8 shadow-3xl text-center max-w-sm border-white/20"
-              >
-                 <div className="h-24 w-24 bg-primary rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-primary/30">
-                    <Navigation className="h-12 w-12 text-white animate-float" />
-                 </div>
-                 <div className="space-y-3">
-                   <p className="text-2xl font-heading font-black text-foreground tracking-tight leading-none">Ready to Explore?</p>
-                   <p className="text-sm font-semibold text-muted-foreground leading-relaxed">Define your origin and destination below to unlock real-time intelligence.</p>
-                 </div>
-              </motion.div>
-           </div>
+          <div className="absolute inset-0 z-10 bg-primary/5 flex items-center justify-center pointer-events-none transition-opacity duration-700">
+            <motion.div
+              animate={{ y: [0, -15, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              className="glass p-16 rounded-[4rem] flex flex-col items-center gap-8 shadow-3xl text-center max-w-sm border-white/20"
+            >
+              <div className="h-24 w-24 bg-primary rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-primary/30">
+                <Navigation className="h-12 w-12 text-white animate-float" />
+              </div>
+              <div className="space-y-3">
+                <p className="text-2xl font-heading font-black text-foreground tracking-tight leading-none">Ready to Explore?</p>
+                <p className="text-sm font-semibold text-muted-foreground leading-relaxed">Define your origin and destination below to unlock real-time intelligence.</p>
+              </div>
+            </motion.div>
+          </div>
         )}
 
         <div className="h-full w-full relative z-0">
