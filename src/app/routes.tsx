@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { RootLayout } from "./layouts/RootLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { Schedule } from "./pages/Schedule";
@@ -34,5 +34,9 @@ export const router = createBrowserRouter([
       { path: "expenses", Component: ExpenseTracker },
       { path: "settings", Component: Settings },
     ],
+  },
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
   },
 ]);

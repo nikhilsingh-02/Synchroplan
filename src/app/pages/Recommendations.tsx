@@ -62,7 +62,7 @@ export const Recommendations: React.FC = () => {
       const matchesSearch = rec.name.toLowerCase().includes(searchQuery.toLowerCase());
       
       if (selectedType === "local") {
-        return (rec.isLocalFavorite || rec.relevanceScore > 1.2) && matchesSearch;
+        return (rec.isLocalFavorite || rec.relevanceScore > 0.8) && matchesSearch;
       }
       
       const matchesType = selectedType === "all" || rec.type.toLowerCase().includes(selectedType.toLowerCase());

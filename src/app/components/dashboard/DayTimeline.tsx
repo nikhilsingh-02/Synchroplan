@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
-import { format, parseISO, differenceInMinutes, addMinutes, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { 
   Clock, 
   MapPin, 
   Navigation, 
   ChevronRight, 
   Zap, 
-  AlertCircle 
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import type { Event, TravelRoute } from '../../../types';
@@ -47,7 +47,6 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({
         const gapMin = differenceInMinutes(parseISO(nextEvent.startTime), parseISO(event.endTime));
         
         if (gapMin > 0) {
-          // Find matching route for this gap if exists
           const route = routes.find(r => 
             r.from.toLowerCase().includes(event.location.toLowerCase()) || 
             r.to.toLowerCase().includes(nextEvent.location.toLowerCase())
@@ -68,82 +67,96 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({
 
   if (todayEvents.length === 0) {
     return (
-      <div className="glass rounded-[2rem] p-12 text-center border-dashed border-2 border-gray-200">
-        <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300 opacity-50" />
-        <h3 className="text-xl font-bold text-gray-400">No events today</h3>
-        <p className="text-gray-400 text-sm mt-1">Your timeline will appear here once you add events.</p>
-      </div>
+      <Link to="/schedule" className="block outline-none">
+        <div className="glass rounded-3xl p-16 text-center border-dashed border-2 border-primary/10 hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group">
+          <Clock className="h-14 w-14 mx-auto mb-6 text-primary/20 opacity-50 group-hover:scale-110 group-hover:text-primary/50 transition-all" />
+          <h3 className="text-2xl font-heading font-semibold text-foreground/60 transition-colors group-hover:text-foreground">Quiet Day Ahead</h3>
+          <p className="text-muted-foreground text-sm mt-2 max-w-xs mx-auto font-medium">Your timeline will appear here once you add events to your schedule. Click to plan your day.</p>
+        </div>
+      </Link>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between px-2">
-        <h2 className="text-2xl font-black tracking-tight text-gray-900 flex items-center gap-2">
-          <Zap className="h-6 w-6 text-amber-500 fill-amber-500" />
-          Today's Journey
-        </h2>
-        <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-          {format(today, 'EEEE, MMM do')}
-        </span>
+    <div className="space-y-6">
+      <div className="flex items-end justify-between px-2">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-heading font-black tracking-tight text-foreground flex items-center gap-3">
+            <Zap className="h-7 w-7 text-primary fill-primary/10" />
+            Daily Rhythm
+          </h2>
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-[0.2em] ml-10">
+            {format(today, 'EEEE, MMMM do')}
+          </p>
+        </div>
       </div>
 
-      <div className="relative overflow-x-auto pb-8 pt-4 hide-scrollbar">
-        <div className="flex items-center gap-4 min-w-max px-2">
+      <div className="relative overflow-x-auto pb-10 pt-4 hide-scrollbar -mx-2 px-2">
+        <div className="flex items-center gap-6 min-w-max">
           {timelineItems.map((item, idx) => (
             <React.Fragment key={idx}>
               {item.type === 'event' ? (
                 <motion.div
                   whileHover={{ scale: 1.02, translateY: -4 }}
                   onClick={() => onEventClick?.(item.data)}
-                  className={`relative w-72 shrink-0 glass rounded-[2rem] p-6 cursor-pointer transition-all border-l-8 ${
-                    item.data.priority === 'high' ? 'border-l-red-500' : 'border-l-indigo-500'
+                  className={`relative w-80 shrink-0 glass rounded-[2rem] p-8 cursor-pointer transition-all border-l-[6px] shadow-sm hover:shadow-xl ${
+                    item.data.priority === 'high' ? 'border-l-destructive' : 'border-l-primary'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <Badge variant="outline" className="text-[10px] uppercase font-black tracking-widest border-gray-100 text-gray-400">
+                  <div className="flex justify-between items-center mb-6">
+                    <Badge variant="secondary" className="px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest bg-primary/5 text-primary border-0">
                       {item.data.type}
                     </Badge>
-                    <span className="text-[10px] font-black text-gray-400">
-                      {format(parseISO(item.data.startTime), 'h:mm a')}
-                    </span>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span className="text-[11px] font-bold">
+                        {format(parseISO(item.data.startTime), 'h:mm a')}
+                      </span>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-black text-gray-900 leading-tight mb-2 line-clamp-1">
+                  <h3 className="text-xl font-heading font-bold text-foreground leading-tight mb-4 line-clamp-2">
                     {item.data.title}
                   </h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-500 font-bold">
-                    <MapPin className="h-3.5 w-3.5 text-indigo-400" />
+                  <div className="flex items-center gap-2.5 text-xs text-muted-foreground font-semibold">
+                    <div className="p-1.5 bg-primary/5 rounded-lg">
+                      <MapPin className="h-3.5 w-3.5 text-primary" />
+                    </div>
                     <span className="truncate">{item.data.location}</span>
                   </div>
                 </motion.div>
               ) : (
-                <div className="flex flex-col items-center justify-center px-4 py-2 group">
-                  <div className="h-0.5 w-16 bg-gray-100 group-hover:bg-indigo-100 transition-colors relative">
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                       <span className="text-[10px] font-black text-gray-300 group-hover:text-indigo-400 transition-colors tracking-tighter uppercase">
-                         {item.duration}m Gap
+                <div className="flex flex-col items-center justify-center px-6 group">
+                  <div className="h-0.5 w-20 bg-primary/10 group-hover:bg-primary/30 transition-all relative">
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                       <span className="text-[10px] font-bold text-muted-foreground group-hover:text-primary transition-colors tracking-widest uppercase">
+                         {item.duration}m Buffer
                        </span>
                     </div>
                   </div>
                   {item.route ? (
-                    <div className="mt-4 flex flex-col items-center gap-1">
-                      <Navigation className="h-4 w-4 text-emerald-500 animate-pulse" />
-                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">{item.route.duration}m Travel</span>
+                    <div className="mt-6 flex flex-col items-center gap-1.5">
+                      <div className="p-2 bg-emerald-50 rounded-xl">
+                        <Navigation className="h-4 w-4 text-emerald-500 animate-float" />
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">{item.route.duration}m Travel</span>
                     </div>
                   ) : (
-                    <div className="mt-4 opacity-20 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1">
-                      <Navigation className="h-4 w-4 text-gray-300" />
+                    <div className="mt-6 opacity-30 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1.5 grayscale group-hover:grayscale-0">
+                       <div className="p-2 bg-muted rounded-xl">
+                        <Navigation className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
                   )}
                 </div>
               )}
             </React.Fragment>
           ))}
-          
-          <div className="w-40 shrink-0 flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-100 rounded-[2rem] text-gray-300">
-             <ChevronRight className="h-8 w-8 mb-2" />
-             <span className="text-[10px] font-black uppercase tracking-widest">End of Day</span>
-          </div>
+          <Link to="/schedule" className="block outline-none shrink-0">
+            <div className="w-48 h-full min-h-[200px] flex flex-col items-center justify-center p-10 border-2 border-dashed border-primary/10 rounded-[2.5rem] bg-primary/5 group hover:border-primary/30 hover:bg-primary/10 transition-all cursor-pointer">
+               <ChevronRight className="h-10 w-10 mb-3 text-primary/20 group-hover:text-primary/60 group-hover:translate-x-1.5 transition-all" />
+               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/40 group-hover:text-primary/80 transition-colors text-center">Plan More<br/>Activity</span>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { useApp } from '../context/AppContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
@@ -15,7 +15,6 @@ import {
   Bike,
   Clock,
   IndianRupee,
-  TrendingUp,
   AlertCircle,
   MapPin,
   Zap,
@@ -25,19 +24,18 @@ import {
   Sparkles,
   ChevronRight,
   TrendingDown,
-  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { geocodeAndCalculateRoute, MapsApiError, type RouteResult, reverseGeocodeAddress } from '../../services/maps/smart-maps.service';
+import { geocodeAndCalculateRoute, type RouteResult, reverseGeocodeAddress } from '../../services/maps/smart-maps.service';
 import { getUserLocation } from '../../services/location/userLocation';
 import type { TravelRoute } from '../../types';
 import { RouteMap, type MapMarker } from '../../components/maps/RouteMap';
 import { useTrafficPoller } from '../../hooks/useTrafficPoller';
-import { format, parseISO, subMinutes } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const TravelPlanner: React.FC = () => {
-  const { routes, addRoute, updateEvent, events } = useApp();
+  const { routes, addRoute } = useApp();
   const location = useLocation();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -65,7 +63,7 @@ export const TravelPlanner: React.FC = () => {
   const handleUseCurrentLocation = async (e: React.MouseEvent) => {
     e.preventDefault();
     try {
-      toast.info('Detecting your real-life location...');
+      toast.info('Detecting your location...');
       const coords = await getUserLocation();
       const address = await reverseGeocodeAddress(coords.latitude, coords.longitude);
       setOrigin(address || `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`);
@@ -150,161 +148,134 @@ export const TravelPlanner: React.FC = () => {
   const recentRoutes = showResults ? routes.slice(-lastUsedModes.length).reverse() : [];
 
   return (
-    <div className="flex flex-col xl:flex-row gap-8 w-full h-full pb-20 animate-in fade-in duration-700">
+    <div className="flex flex-col xl:flex-row gap-12 w-full h-full pb-20 fade-in-up">
       
-      {/* Left Column: Form & Insights */}
-      <div className="w-full xl:w-[450px] shrink-0 flex flex-col gap-8">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-black tracking-tighter text-gray-900 leading-none">
-            Travel <span className="text-gradient-primary">Planner</span>
+      {/* ─── Left Column: Form & Insights ─── */}
+      <div className="w-full xl:w-[480px] shrink-0 flex flex-col gap-10">
+        <div className="space-y-2">
+          <h1 className="text-5xl font-heading font-black tracking-tighter text-foreground leading-none">
+            Travel <span className="text-gradient-primary">Intelligence</span>
           </h1>
-          <p className="text-gray-500 font-bold tracking-tight">AI-Optimized Multi-Modal Navigation</p>
+          <p className="text-muted-foreground font-semibold tracking-tight ml-1">AI-Optimized Multi-Modal Navigation</p>
         </div>
 
-        <Card className="glass border-0 rounded-[2.5rem] shadow-2xl overflow-hidden">
-          <CardHeader className="p-8 pb-4">
-            <CardTitle className="flex items-center gap-3 text-xl font-black">
-              <Sparkles className="h-6 w-6 text-indigo-500" />
-              Configure Route
+        <Card className="glass border-white/20 rounded-[2.5rem] shadow-2xl overflow-hidden border-0">
+          <CardHeader className="p-10 pb-6">
+            <CardTitle className="flex items-center gap-3 text-2xl font-black">
+              <Sparkles className="h-7 w-7 text-primary animate-pulse" />
+              Configure Strategy
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 pt-0 space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Starting From</Label>
-                <div className="flex gap-2">
+          <CardContent className="p-10 pt-0 space-y-8">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Origin Point</Label>
+                <div className="flex gap-3">
                   <Input
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
                     placeholder="Search origin..."
-                    className="h-14 rounded-2xl bg-gray-50 border-0 focus-visible:ring-indigo-500 font-bold"
+                    className="h-14 rounded-2xl bg-primary/5 border-0 focus-visible:ring-primary font-bold shadow-sm"
                   />
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={handleUseCurrentLocation}
-                    className="h-14 w-14 rounded-2xl border-0 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all active:scale-90"
+                    className="h-14 w-14 rounded-2xl border-0 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all active:scale-90"
                   >
-                    <LocateFixed className="h-5 w-5" />
+                    <LocateFixed className="h-6 w-6" />
                   </Button>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Destination</Label>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Destination Target</Label>
                 <Input
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   placeholder="Where to?"
-                  className="h-14 rounded-2xl bg-gray-50 border-0 focus-visible:ring-indigo-500 font-bold"
+                  className="h-14 rounded-2xl bg-primary/5 border-0 focus-visible:ring-primary font-bold shadow-sm"
                 />
               </div>
             </div>
             
-            <div className="space-y-4 pt-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Strategy</Label>
+            <div className="space-y-6 pt-2">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Optimization Mode</Label>
                 <Select value={mode} onValueChange={(v: any) => setMode(v)}>
-                  <SelectTrigger className="h-14 rounded-2xl bg-gray-50 border-0 font-black">
+                  <SelectTrigger className="h-14 rounded-2xl bg-primary/5 border-0 font-bold focus:ring-primary">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-0 shadow-2xl">
-                    <SelectItem value="driving" className="font-bold">Fastest (Driving)</SelectItem>
-                    <SelectItem value="transit" className="font-bold">Economical (Transit)</SelectItem>
-                    <SelectItem value="walking" className="font-bold">Active (Walking)</SelectItem>
+                  <SelectContent className="rounded-2xl border-0 shadow-2xl glass">
+                    <SelectItem value="driving" className="font-bold rounded-xl py-3 px-4">Fastest (Driving)</SelectItem>
+                    <SelectItem value="transit" className="font-bold rounded-xl py-3 px-4">Economical (Transit)</SelectItem>
+                    <SelectItem value="walking" className="font-bold rounded-xl py-3 px-4">Active (Walking)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <Button 
                 onClick={handleSearch} 
-                className="w-full bg-indigo-600 hover:bg-black text-white rounded-3xl h-16 font-black text-lg shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                className="w-full bg-primary hover:bg-foreground text-primary-foreground rounded-2xl h-16 font-bold text-lg shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
                 disabled={isCalculating}
               >
                 {isCalculating ? <Loader2 className="h-6 w-6 mr-3 animate-spin" /> : <Zap className="h-6 w-6 mr-3 text-amber-300" />}
-                {isCalculating ? 'Determining Optimal Path...' : 'Optimize Route'}
+                {isCalculating ? 'Determining Optimal Path...' : 'Optimize Intelligence'}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Proactive Quick Events */}
-        {events.length > 0 && !showResults && (
-           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              <h2 className="text-xs font-black tracking-widest text-gray-400 uppercase ml-1">Next Possible Destinations</h2>
-              <div className="grid grid-cols-1 gap-3">
-                 {events.filter(e => !e.hasConflict).slice(0, 3).map(e => (
-                    <button 
-                      key={e.id}
-                      onClick={() => setDestination(e.location)}
-                      className="glass p-5 rounded-[1.5rem] flex items-center justify-between group hover:border-indigo-200 transition-all active:scale-95 text-left"
-                    >
-                       <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                             <MapPin className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <p className="font-black text-gray-900 group-hover:text-indigo-600 transition-colors uppercase text-xs tracking-tight">{e.title}</p>
-                            <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest truncate max-w-[150px]">{e.location}</p>
-                          </div>
-                       </div>
-                       <ChevronRight className="h-5 w-5 text-gray-200 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
-                    </button>
-                 ))}
-              </div>
-           </motion.div>
-        )}
-
         {/* Route Comparison Results */}
         <AnimatePresence>
           {showResults && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
-              <h2 className="text-xl font-black text-gray-900 tracking-tight">AI Comparison Results</h2>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 overflow-y-auto max-h-[600px] pr-2 hide-scrollbar">
+              <h2 className="text-2xl font-heading font-black text-foreground tracking-tight px-1">AI Optimized Results</h2>
               {recentRoutes.map((route) => {
-                const costs = estimateCosts(route.distance);
                 const isOptimal = route.status === 'optimal';
                 return (
-                  <Card key={route.id} className={`glass border-0 rounded-[2.5rem] p-8 shadow-lg overflow-hidden relative group ${isOptimal ? 'ring-2 ring-emerald-500/20' : ''}`}>
+                  <Card key={route.id} className={`glass border-white/20 rounded-[2.5rem] p-10 shadow-lg overflow-hidden relative group transition-all duration-500 border-0 ${isOptimal ? 'ring-2 ring-emerald-500/30 ring-inset' : ''}`}>
                     {isOptimal && (
-                      <div className="absolute top-0 right-0 py-2 px-6 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-bl-3xl shadow-lg">
-                        Optimal Path
+                      <div className="absolute top-0 right-0 py-2.5 px-8 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-[0.2em] rounded-bl-3xl shadow-lg">
+                        Best Choice
                       </div>
                     )}
-                    <div className="flex items-center gap-6 mb-8">
-                       <div className={`p-5 rounded-3xl ${route.mode === 'driving' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    <div className="flex items-center gap-6 mb-10">
+                       <div className={`p-5 rounded-2xl shadow-sm ${route.mode === 'driving' ? 'bg-primary/5 text-primary' : 'bg-emerald-50 text-emerald-600'}`}>
                          {getModeIcon(route.mode)}
                        </div>
                        <div>
-                          <h3 className="text-2xl font-black text-gray-900 capitalize leading-none mb-1">{route.mode}</h3>
-                          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{route.distance} KM • {route.duration} Min</p>
+                          <h3 className="text-3xl font-heading font-black text-foreground capitalize leading-none mb-2">{route.mode}</h3>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{route.distance} KM • {route.duration} Min</p>
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-8">
-                       <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Est. Cost</p>
-                          <p className="text-lg font-black text-gray-900">₹{route.cost}</p>
+                    <div className="grid grid-cols-2 gap-5 mb-10">
+                       <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Estimated Cost</p>
+                          <p className="text-xl font-bold text-foreground">₹{route.cost}</p>
                        </div>
-                       <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Arrival Time</p>
-                          <p className="text-lg font-black text-gray-900">
+                       <div className="bg-primary/5 p-5 rounded-2xl border border-primary/5">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1.5 opacity-60">Arrival Window</p>
+                          <p className="text-xl font-bold text-foreground">
                             {format(parseISO(route.arrivalTime), 'h:mm a')}
                           </p>
                        </div>
                     </div>
 
                     {route.mode === 'driving' && liveTrafficLevel === 'high' && (
-                       <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-start gap-3 mb-6">
-                          <AlertCircle className="h-4 w-4 text-red-500 mt-1 shrink-0" />
-                          <p className="text-xs font-bold text-red-700">Expect delays! Heavy congestion detected on the main route.</p>
+                       <div className="bg-destructive/5 p-5 rounded-2xl border border-destructive/10 flex items-start gap-4 mb-8">
+                          <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                          <p className="text-xs font-semibold text-destructive/80 leading-relaxed">Expect significant delays! Heavy congestion detected on the primary corridor.</p>
                        </div>
                     )}
 
                     <Button
-                      className="w-full h-16 rounded-[1.25rem] bg-gray-900 text-white font-black shadow-2xl shadow-gray-200 hover:bg-indigo-600 transition-all active:scale-95 text-base"
+                      variant="secondary"
+                      className="w-full h-16 rounded-2xl bg-foreground text-background font-bold shadow-2xl hover:bg-primary hover:text-white transition-all active:scale-[0.98] text-base"
                       onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(route.from)}&destination=${encodeURIComponent(route.to)}&travelmode=${route.mode === 'cycling' ? 'bicycling' : route.mode}`, '_blank')}
                     >
-                      <Navigation className="h-5 w-5 mr-3 text-white/50" />
-                      Start Navigation
+                      <Navigation className="h-5 w-5 mr-3 opacity-40" />
+                      Dispatch Navigation
                     </Button>
                   </Card>
                 );
@@ -314,29 +285,29 @@ export const TravelPlanner: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Right Column: Full Height Interactive Map */}
-      <div className="flex-1 sticky top-8 h-[calc(100vh-8rem)] rounded-[3rem] overflow-hidden shadow-3xl border-8 border-white bg-gray-50 relative group">
+      {/* ─── Right Column: Interactive Map ─── */}
+      <div className="flex-1 sticky top-10 h-[calc(100vh-10rem)] rounded-[3rem] overflow-hidden shadow-3xl border-8 border-white/50 bg-primary/5 relative group transition-all duration-700">
         
         {/* Map UI Overlays */}
-        <div className="absolute top-8 left-8 right-8 z-[1000] flex justify-between items-center bg-white/80 backdrop-blur-2xl px-8 py-5 rounded-[2rem] shadow-2xl border border-white/50 transition-all hover:bg-white">
-          <div className="flex items-center gap-5">
-            <div className="p-3 bg-indigo-50 rounded-2xl">
-              <RouteIcon className="h-6 w-6 text-indigo-600" />
+        <div className="absolute top-10 left-10 right-10 z-[1000] flex justify-between items-center bg-white/60 backdrop-blur-3xl px-10 py-6 rounded-[2.5rem] shadow-2xl border border-white/20 transition-all hover:bg-white/80">
+          <div className="flex items-center gap-6">
+            <div className="p-3.5 bg-primary/5 rounded-2xl shadow-sm">
+              <RouteIcon className="h-7 w-7 text-primary" />
             </div>
-            <div>
-              <h2 className="text-lg font-black text-gray-900 tracking-tight leading-none mb-1">Live Intelligence Map</h2>
-              <div className="flex items-center gap-3">
-                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                    <div className="h-2 w-2 bg-emerald-500 rounded-full shadow-sm shadow-emerald-200" />
-                    Optimal: Green
+            <div className="space-y-1">
+              <h2 className="text-xl font-heading font-black text-foreground tracking-tight leading-none">Live Analytics Map</h2>
+              <div className="flex items-center gap-5">
+                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                    <div className="h-2.5 w-2.5 bg-emerald-500 rounded-full shadow-lg shadow-emerald-200" />
+                    Optimal
                  </span>
-                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-500">
-                    <div className="h-2 w-2 bg-amber-500 rounded-full shadow-sm shadow-amber-200" />
-                    Med: Amber
+                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+                    <div className="h-2.5 w-2.5 bg-amber-500 rounded-full shadow-lg shadow-amber-200" />
+                    Moderate
                  </span>
-                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-red-500">
-                    <div className="h-2 w-2 bg-red-500 rounded-full shadow-sm shadow-red-200 animate-pulse" />
-                    High: Red
+                 <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-destructive">
+                    <div className="h-2.5 w-2.5 bg-destructive rounded-full shadow-lg shadow-destructive/20 animate-pulse" />
+                    Congested
                  </span>
               </div>
             </div>
@@ -345,11 +316,11 @@ export const TravelPlanner: React.FC = () => {
           <div className="flex items-center gap-4">
              {showResults && (
                 <div className="group/traffic relative">
-                   <Button variant="ghost" onClick={refreshTraffic} disabled={isRefreshing} className="h-14 w-14 rounded-2xl bg-gray-50/50 hover:bg-indigo-50 transition-all">
-                      {isRefreshing ? <Loader2 className="h-5 w-5 animate-spin text-indigo-400" /> : <TrendingUp className="h-5 w-5 text-indigo-600" />}
+                   <Button variant="ghost" onClick={refreshTraffic} disabled={isRefreshing} className="h-14 w-14 rounded-2xl bg-white/50 hover:bg-primary/5 transition-all outline-none border border-white/20 shadow-sm">
+                      {isRefreshing ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <TrendingDown className="h-6 w-6 text-primary" />}
                    </Button>
-                   <div className="absolute top-full right-0 mt-3 hidden group-hover/traffic:block w-48 glass p-3 rounded-xl shadow-2xl text-[10px] font-black text-indigo-900 uppercase tracking-widest text-center">
-                     Live Force Refresh
+                   <div className="absolute top-full right-0 mt-4 hidden group-hover/traffic:block w-56 glass p-4 rounded-xl shadow-3xl text-[10px] font-bold text-primary uppercase tracking-[0.2em] text-center border-white/20">
+                     Recalculate Traffic Pulse
                    </div>
                 </div>
              )}
@@ -358,18 +329,18 @@ export const TravelPlanner: React.FC = () => {
 
         {/* Map Logic Overlay (Empty State) */}
         {!showResults && (
-           <div className="absolute inset-0 z-10 bg-indigo-950/5 flex items-center justify-center pointer-events-none">
+           <div className="absolute inset-0 z-10 bg-primary/5 flex items-center justify-center pointer-events-none transition-opacity duration-700">
               <motion.div 
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="glass p-12 rounded-[3.5rem] flex flex-col items-center gap-6 shadow-3xl text-center max-w-sm"
+                animate={{ y: [0, -15, 0] }}
+                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                className="glass p-16 rounded-[4rem] flex flex-col items-center gap-8 shadow-3xl text-center max-w-sm border-white/20"
               >
-                 <div className="h-20 w-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-200">
-                    <Navigation className="h-10 w-10 text-white animate-float" />
+                 <div className="h-24 w-24 bg-primary rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-primary/30">
+                    <Navigation className="h-12 w-12 text-white animate-float" />
                  </div>
-                 <div>
-                   <p className="text-xl font-black text-indigo-950 tracking-tight mb-2">Ready to optimize?</p>
-                   <p className="text-sm font-bold text-indigo-800 opacity-60">Enter a starting point and destination to unlock real-life multi-modal intelligence.</p>
+                 <div className="space-y-3">
+                   <p className="text-2xl font-heading font-black text-foreground tracking-tight leading-none">Ready to Explore?</p>
+                   <p className="text-sm font-semibold text-muted-foreground leading-relaxed">Define your origin and destination below to unlock real-time intelligence.</p>
                  </div>
               </motion.div>
            </div>

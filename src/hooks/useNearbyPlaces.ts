@@ -93,9 +93,13 @@ export function useNearbyPlaces() {
       console.log(`[LocalArea] Syncing for: ${coords.lat}, ${coords.lng}`);
 
       const [googleRes, overpassRes] = await Promise.allSettled([
-        fetchGoogle(coords.lat, coords.lng, 50000), // radius 50km
-        fetchOverpass(coords.lat, coords.lng, 25000) // focus overpass more locally
+        fetchGoogle(coords.lat, coords.lng, 15000, 60), // radius 15km
+        fetchOverpass(coords.lat, coords.lng, 5000, 400) // focus overpass strictly locally (5km), get 400
       ]);
+      
+      if (googleRes.status === 'rejected' && overpassRes.status === 'rejected') {
+         throw new Error("Both location services failed to respond.");
+      }
 
       const gPlaces = googleRes.status === 'fulfilled' ? googleRes.value : [];
       const oPlaces = overpassRes.status === 'fulfilled' ? overpassRes.value : [];
@@ -134,7 +138,7 @@ export function useNearbyPlaces() {
             distance: p.distance,
             relevanceScore: rel,
             source: 'overpass',
-            isLocalFavorite: p.distance < 0.5 || p.category === 'canteen'
+            isLocalFavorite: p.distance < 2.0 || p.category === 'canteen'
           });
         }
       });
